@@ -28,6 +28,6 @@ test("room timeline workspace supports property selection, date range and room g
   assert.ok(page.includes("Room operations timeline"));
   assert.ok(page.includes('type="date"'));
   assert.ok(page.includes("eventsByRoom"));
-  assert.ok(page.includes("Housekeeping"));
-  assert.ok(page.includes("Maintenance"));
+  assert.ok(page.includes("SprayCan"));
+  assert.ok(page.includes("Wrench"));
 });
