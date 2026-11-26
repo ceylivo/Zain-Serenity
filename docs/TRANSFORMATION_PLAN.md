@@ -243,3 +243,17 @@ The `/workspace/inventory` page provides a tenant/property-scoped interface for:
 - Restricting create controls to tenant owners and property managers in the UI; all writes still pass through the server's tenant-scoped `inventory:manage` APIs.
 
 This is an initial create-and-view workflow. Editing/deactivating existing inventory, availability calendar, date-based price overrides, housekeeping status operations and booking assignment UI remain outstanding.
+
+
+## Booking operations and housekeeping — initial workflow
+
+The feature branch now includes:
+- `/workspace/bookings`: tenant/property-scoped reservation list, operational summary, pending-booking confirmation, physical room assignment, check-in and check-out actions.
+- Check-in requires a confirmed booking, a physical room assignment and a room in `ready` status. The room transitions to `occupied` in the same MongoDB transaction.
+- Check-out requires an in-house booking and an `occupied` room. The booking transitions to `checked_out` and the room transitions to `cleaning` in the same transaction.
+- `/workspace/housekeeping`: room status board and allowed transitions for cleaning, ready, maintenance and out-of-service states.
+- Dedicated `inventory:housekeeping` permission, granted to tenant owners and the housekeeping role; all updates remain tenant/property scoped.
+- Housekeeping cannot mark a room ready or unavailable while a checked-in booking is assigned to it.
+- All booking and housekeeping transitions create audit events and fail closed if MongoDB transactions are unavailable.
+
+This is an initial operational workflow. Outstanding work includes paginated/searchable queues, arrival/departure date filtering, guest identity/contact display with privacy controls, room unassignment/reassignment, no-show handling, maintenance work orders, housekeeping task assignment, and full end-to-end browser testing. The existing customer booking and payment flows remain independent; check-in is not treated as proof of payment collection.
