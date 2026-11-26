@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate application
+    name: Validate SaaS foundation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -30,8 +30,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Lint
-        run: npm run lint
+      - name: Lint SaaS foundation
+        run: npm run lint:saas
       - name: Type check
         run: npm run typecheck
       - name: Unit tests
