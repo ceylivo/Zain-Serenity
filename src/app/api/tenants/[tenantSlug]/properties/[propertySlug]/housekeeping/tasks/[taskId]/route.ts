@@ -66,7 +66,7 @@ export async function PATCH(request: Request, context: Context) {
       await current.save({ session: sessionDb });
       await synchronizePhysicalRoomOperationalStatus({
         tenantId: access.tenantId, propertyId: access.propertyId,
-        physicalRoomId: current.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        physicalRoomId: current.physicalRoomId as mongoose.Types.ObjectId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
         session: sessionDb, source: "housekeeping_task",
       });
       await AuditLog.create([{
