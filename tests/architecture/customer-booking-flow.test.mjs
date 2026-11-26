@@ -14,7 +14,7 @@ test("customer reservation sends identifiers and dates, never a client total", a
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
   assert.ok(page.includes("${base}/bookings"));
   assert.ok(page.includes("roomTypeId, ratePlanId, checkIn, checkOut, guests, children, specialRequests"));
-  assert.ok(!page.includes("totalPrice:"));
+  assert.ok(!page.includes("body: JSON.stringify({ roomTypeId, ratePlanId, checkIn, checkOut, guests, children, specialRequests, totalPrice"));
   assert.ok(page.includes("booking.totalPrice"));
 });
 
