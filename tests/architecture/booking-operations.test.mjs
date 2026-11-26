@@ -16,7 +16,8 @@ test("stay lifecycle requires a room assignment and transitions room status atom
   assert.ok(lifecycle.includes('status: "ready"'));
   assert.ok(lifecycle.includes('status: "occupied"'));
   assert.ok(lifecycle.includes('status: "cleaning"'));
-  assert.ok(lifecycle.includes('action: input.action === "check_in" ? "booking.checked_in" : "booking.checked_out"'));
+  assert.ok(lifecycle.includes('input.action === "confirm" ? "booking.confirmed"'));
+  assert.ok(lifecycle.includes('input.action === "check_in" ? "booking.checked_in" : "booking.checked_out"'));
 });
 
 test("housekeeping uses a dedicated tenant permission and prevents making in-house rooms ready", async () => {
