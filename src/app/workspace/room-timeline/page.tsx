@@ -8,7 +8,7 @@ import { CalendarDays, Clock3, Loader2, RefreshCw, Wrench, BedDouble, SprayCan }
 type Membership = { id: string; role: string; tenant: { name: string; slug: string } };
 type Property = { _id: string; name: string; slug: string };
 type Room = { id: string; roomNumber: string; roomTypeId: string; floor: string; status: string };
-type Event = { id: string; roomId: string; type: string; title: string; description?: string; startAt: string; endAt?: string; status: string; priority?: string; assignedTo?: string; sourceId: string; activity?: boolean };
+type Event = { id: string; roomId: string; type: string; title: string; description?: string; startAt: string; endAt?: string; status: string; priority?: string; assignedTo?: string; assignedToName?: string; sourceId: string; activity?: boolean };
 type Timeline = { range: { from: string; to: string }; rooms: Room[]; events: Event[]; truncated: boolean };
 type Api<T> = { data?: T; error?: { message?: string } };
 const input = "mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm";
@@ -109,7 +109,7 @@ export default function RoomTimelinePage() {
             {!events.length ? <p className="px-5 py-6 text-sm text-slate-500">No recorded activity in this date range.</p> : <ol className="divide-y divide-slate-100">{events.map((event) => <li key={event.id} className="flex gap-3 px-5 py-4">
               <div className="mt-0.5 rounded-lg bg-slate-100 p-2">{event.type.startsWith("booking") ? <BedDouble size={17}/> : event.type.startsWith("housekeeping") ? <SprayCan size={17}/> : <Wrench size={17}/>}</div>
               <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-slate-900">{event.title}</p><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize text-slate-600">{pretty(event.status)}</span>{event.priority && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs capitalize text-amber-800">{event.priority}</span>}</div>
-                {event.description && <p className="mt-1 text-sm text-slate-600">{event.description}</p>}
+                {event.description && <p className="mt-1 text-sm text-slate-600">{event.description}</p>}{event.assignedToName && <p className="mt-1 text-xs text-slate-500">Assigned to {event.assignedToName}</p>}
                 <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-slate-500"><Clock3 size={12}/>{dateTime(event.startAt)}{event.endAt ? ` → ${dateTime(event.endAt)}` : ""}{event.activity ? " · Status activity" : ""}</p>
               </div>
             </li>)}</ol>}
