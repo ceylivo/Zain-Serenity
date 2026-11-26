@@ -88,7 +88,7 @@ export async function POST(request: Request, context: Context) {
       }], { session: sessionDb });
       await synchronizePhysicalRoomOperationalStatus({
         tenantId: access.tenantId, propertyId: access.propertyId,
-        physicalRoomId: room._id, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        physicalRoomId: room._id as mongoose.Types.ObjectId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
         session: sessionDb, source: "housekeeping_task",
       });
       await AuditLog.create([{
