@@ -70,7 +70,6 @@ export async function POST(request: Request, context: Context) {
         type: "authenticated",
         access_mode: "authenticated",
         allowed_formats: ["jpg", "jpeg", "png", "webp"],
-        transformation: [{ quality: "auto", fetch_format: "auto" }],
       }, (error, result) => {
         if (error || !result) reject(error ?? new Error("Cloudinary returned no upload result"));
         else resolve({ public_id: result.public_id, resource_type: result.resource_type as "image" | "raw" });
