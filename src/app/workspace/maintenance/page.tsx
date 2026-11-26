@@ -83,14 +83,14 @@ export default function MaintenanceWorkspacePage() {
   }, [tenantSlug]);
 
   useEffect(() => {
-    if (!tenantSlug || !propertySlug) { setRooms([]); setOrders([]); return; }
+    if (!tenantSlug || !propertySlug) return;
     let active = true;
     void refresh(tenantSlug, propertySlug).catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Unable to load maintenance data."); });
     return () => { active = false; };
   }, [tenantSlug, propertySlug, refresh]);
 
   useEffect(() => {
-    if (!tenantSlug || !propertySlug) { setAssignees([]); return; }
+    if (!tenantSlug || !propertySlug) return;
     let active = true;
     void (async () => {
       try {
