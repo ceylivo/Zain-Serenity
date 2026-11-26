@@ -7,7 +7,7 @@ import { isRecord, readString } from "@/lib/inputValidation";
 import dbConnect from "@/lib/dbConnect";
 import PhysicalRoom from "@/models/PhysicalRoom";
 import Membership from "@/models/Membership";
-import MaintenanceWorkOrder, { MAINTENANCE_PRIORITIES, MAINTENANCE_STATUSES } from "@/models/MaintenanceWorkOrder";
+import MaintenanceWorkOrder, { MAINTENANCE_PRIORITIES } from "@/models/MaintenanceWorkOrder";
 import AuditLog from "@/models/AuditLog";
 
 export const runtime = "nodejs";
