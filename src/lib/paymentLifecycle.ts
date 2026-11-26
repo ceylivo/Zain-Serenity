@@ -73,7 +73,7 @@ export async function createPaymentAttempt(input: {
       const [payment] = await Payment.create([{
         tenantId: input.tenantId, propertyId: input.propertyId, bookingId: booking._id,
         userId: new mongoose.Types.ObjectId(input.userId), method: input.method,
-        status: "pending", amount, currency: booking.currency || "PKR",
+        status: "pending", isActive: true, amount, currency: booking.currency || "PKR",
         idempotencyKey: input.idempotencyKey,
       }], { session });
       booking.paymentStatus = "pending";
@@ -90,6 +90,9 @@ export async function createPaymentAttempt(input: {
     return result;
   } catch (error) {
     if (error instanceof PaymentLifecycleError) throw error;
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
+      throw new PaymentLifecycleError("A payment attempt is already active for this booking.", "PAYMENT_ATTEMPT_EXISTS");
+    }
     return transactionError(error);
   } finally {
     await session.endSession();
@@ -122,6 +125,7 @@ async function settlePayment(input: {
   paymentId: string; actorUserId: string; outcome: "succeeded" | "failed";
   expectedMethods?: PaymentMethod[];
   requireSubmittedProof?: boolean;
+  requirePendingOnly?: boolean;
 }) {
   await dbConnect();
   if (!mongoose.isValidObjectId(input.paymentId) || !mongoose.isValidObjectId(input.actorUserId)) {
@@ -140,7 +144,7 @@ async function settlePayment(input: {
         result = payment.toObject() as unknown as Record<string, unknown>;
         return;
       }
-      if (input.requireSubmittedProof ? payment.status !== "pending_verification" : payment.status !== "pending" && payment.status !== "pending_verification") {
+      if (input.requireSubmittedProof ? payment.status !== "pending_verification" : input.requirePendingOnly ? payment.status !== "pending" : payment.status !== "pending" && payment.status !== "pending_verification") {
         throw new PaymentLifecycleError("Payment is not in the required state for this action.", "INVALID_PAYMENT_STATE");
       }
       if (input.expectedMethods && !input.expectedMethods.includes(payment.method)) {
@@ -155,6 +159,7 @@ async function settlePayment(input: {
       }
 
       payment.status = input.outcome;
+      payment.isActive = false;
       payment.verifiedAt = new Date();
       payment.verifiedBy = new mongoose.Types.ObjectId(input.actorUserId);
       if (input.outcome === "failed") payment.failureReason = "Rejected or not received by property staff";
@@ -207,5 +212,5 @@ export function collectCashPayment(input: {
   tenantId: mongoose.Types.ObjectId; propertyId: mongoose.Types.ObjectId;
   paymentId: string; actorUserId: string;
 }) {
-  return settlePayment({ ...input, outcome: "succeeded", expectedMethods: ["cash_on_arrival"] });
+  return settlePayment({ ...input, outcome: "succeeded", expectedMethods: ["cash_on_arrival"], requirePendingOnly: true });
 }
