@@ -57,21 +57,33 @@ export async function createInventoryBooking(input: CreateInventoryBookingInput)
   const subtotal = rate.nightlyRate * nights.length;
   const taxes = Math.round(subtotal * rate.taxRatePercent / 100);
   const total = subtotal + taxes;
+
+  // Materialize each inventory day before opening the transaction. The unique
+  // tenant/property/roomType/date index resolves concurrent first-booking upserts.
+  for (const date of nights) {
+    try {
+      await InventoryDay.updateOne(
+        { tenantId: input.tenantId, propertyId: input.propertyId, roomTypeId, date },
+        { $setOnInsert: {
+          tenantId: input.tenantId, propertyId: input.propertyId, roomTypeId, date,
+          totalRooms: roomType.inventoryCount, availableRooms: roomType.inventoryCount,
+          reservedRooms: 0, blockedRooms: 0,
+        } },
+        { upsert: true }
+      );
+    } catch (error) {
+      if (!(typeof error === "object" && error !== null && "code" in error && error.code === 11000)) {
+        throw error;
+      }
+    }
+  }
+
   const session = await mongoose.startSession();
   let bookingId: mongoose.Types.ObjectId | null = null;
 
   try {
     await session.withTransaction(async () => {
       for (const date of nights) {
-        await InventoryDay.updateOne(
-          { tenantId: input.tenantId, propertyId: input.propertyId, roomTypeId, date },
-          { $setOnInsert: {
-            tenantId: input.tenantId, propertyId: input.propertyId, roomTypeId, date,
-            totalRooms: roomType.inventoryCount, availableRooms: roomType.inventoryCount,
-            reservedRooms: 0, blockedRooms: 0,
-          } },
-          { upsert: true, session }
-        );
         const claimed = await InventoryDay.findOneAndUpdate(
           { tenantId: input.tenantId, propertyId: input.propertyId, roomTypeId, date, availableRooms: { $gt: 0 } },
           { $inc: { availableRooms: -1, reservedRooms: 1 } },
