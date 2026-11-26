@@ -119,11 +119,11 @@ export default function InventoryWorkspacePage() {
   }, [tenantSlug, propertySlug, loadInventory]);
 
   useEffect(() => {
-    if (!tenantSlug || !propertySlug) { setAvailability(null); return; }
+    if (!tenantSlug || !propertySlug) return;
     let active = true;
     const endDate = shiftDateKey(calendarStart, 13);
-    setCalendarLoading(true);
     void (async () => {
+      setCalendarLoading(true);
       try {
         const base = `/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}`;
         const response = await fetch(`${base}/inventory/availability?startDate=${calendarStart}&endDate=${endDate}`, { cache: "no-store" });
