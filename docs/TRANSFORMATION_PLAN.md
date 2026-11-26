@@ -269,3 +269,16 @@ The operations workspace now includes a 14-day availability calendar for each ac
 Booking operations now allow staff to assign, reassign or unassign a physical room before check-in. Each change is transactional, tenant/property scoped and audited. Reassignment rejects rooms with overlapping active stays; unassignment is blocked after check-in. Room assignments do not change the room's housekeeping state until check-in.
 
 Known follow-up: manual inventory blocking/unblocking, property-local timezone configuration, date-range filters and a full interactive end-to-end test suite are still outstanding.
+
+
+## Date-range inventory adjustments
+
+Tenant owners and property managers can block or release sellable room-type inventory for a selected date range. Each request:
+- Requires the property-scoped `inventory:manage` permission.
+- Validates room type ownership, date-only inputs, a maximum 31-day range, positive quantity and an operator reason.
+- Refuses to block more rooms than are currently available, protecting reserved inventory.
+- Refuses to release more rooms than are currently blocked.
+- Runs all date adjustments and the audit event in one MongoDB transaction; unsupported transaction deployments fail closed.
+- Accounts for overlapping legacy active bookings when first materializing inventory-day records.
+
+This is a quantity-based inventory adjustment, not an individually reversible block record. A future operations phase should introduce first-class block records with per-block IDs, actor, reason, timestamps and partial-release history before offering granular cancellation of individual blocks.
