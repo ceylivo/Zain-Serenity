@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BedDouble, Boxes, CreditCard, Settings2, SprayCan, Wrench, CalendarClock, Menu, X } from "lucide-react";
+import { BedDouble, Boxes, CreditCard, Settings2, SprayCan, Wrench, CalendarClock, Menu, X, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 
 const navigation = [
+  { href: "/workspace", label: "Overview", description: "Property performance at a glance", icon: LayoutDashboard },
   { href: "/workspace/bookings", label: "Bookings", description: "Reservations and guest stays", icon: BedDouble },
   { href: "/workspace/room-timeline", label: "Room timeline", description: "Daily property operations", icon: CalendarClock },
   { href: "/workspace/inventory", label: "Inventory", description: "Rooms, rates and availability", icon: Boxes },
@@ -18,9 +19,9 @@ const navigation = [
 export default function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const active = navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const active = navigation.find((item) => item.href === "/workspace" ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`));
   const links = (mobile = false) => navigation.map((item) => {
-    const selected = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const selected = item.href === "/workspace" ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
     const Icon = item.icon;
     return <Link key={item.href} href={item.href} onClick={() => mobile && setMobileOpen(false)}
       aria-current={selected ? "page" : undefined}
@@ -31,7 +32,7 @@ export default function WorkspaceShell({ children }: { children: React.ReactNode
   });
   return <div className="min-h-screen bg-[#f6f8fb] text-slate-900">
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-slate-200 bg-white lg:flex lg:flex-col">
-      <Link href="/workspace/bookings" className="flex h-16 items-center gap-3 border-b border-slate-100 px-5">
+      <Link href="/workspace" className="flex h-16 items-center gap-3 border-b border-slate-100 px-5">
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-700 text-sm font-bold text-white">ZS</span>
         <span><span className="block text-sm font-bold tracking-tight">Zain Serenity</span><span className="block text-xs text-slate-500">Hospitality platform</span></span>
       </Link>
