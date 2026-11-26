@@ -43,3 +43,12 @@ test("a room cannot be marked ready while housekeeping or maintenance work remai
   assert.ok(lifecycle.includes("Complete or cancel open maintenance work orders"));
   assert.ok(lifecycle.includes("withTransaction"));
 });
+test("housekeeping create and update synchronize room state atomically with task and audit writes", async () => {
+  const createRoute = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/housekeeping/tasks/route.ts");
+  const updateRoute = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/housekeeping/tasks/[taskId]/route.ts");
+  for (const route of [createRoute, updateRoute]) {
+    assert.ok(route.includes("synchronizePhysicalRoomOperationalStatus"));
+    assert.ok(route.includes("withTransaction"));
+    assert.ok(route.includes('source: "housekeeping_task"'));
+  }
+});
