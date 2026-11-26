@@ -26,8 +26,8 @@ export async function POST(request: Request, context: Context) {
   }
   if (!isRecord(body)) return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "A JSON object is required." } }, { status: 422 });
   const action = readString(body.action, { min: 7, max: 8 });
-  if (action !== "check_in" && action !== "check_out") {
-    return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "Action must be check_in or check_out." } }, { status: 422 });
+  if (action !== "confirm" && action !== "check_in" && action !== "check_out") {
+    return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "Action must be confirm, check_in or check_out." } }, { status: 422 });
   }
   try {
     const booking = await transitionBookingStay({
