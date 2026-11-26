@@ -6,6 +6,9 @@ import Payment from "@/models/Payment";
 import InventoryDay from "@/models/InventoryDay";
 import PhysicalRoom from "@/models/PhysicalRoom";
 import AuditLog from "@/models/AuditLog";
+import HousekeepingTask from "@/models/HousekeepingTask";
+import MaintenanceWorkOrder from "@/models/MaintenanceWorkOrder";
+import { synchronizePhysicalRoomOperationalStatus } from "@/lib/roomOperationalSync";
 
 export class BookingLifecycleError extends Error {
   constructor(message: string, public readonly code: "BOOKING_NOT_FOUND" | "INVALID_BOOKING_STATE" | "PAYMENT_ACTION_REQUIRED" | "INVENTORY_INCONSISTENT" | "ROOM_NOT_AVAILABLE" | "ROOM_TYPE_MISMATCH" | "ROOM_ASSIGNMENT_CONFLICT" | "LIFECYCLE_FAILED" | "TRANSACTION_UNAVAILABLE") {
@@ -206,6 +209,13 @@ export async function assignPhysicalRoom(input: {
 
       booking.physicalRoomId = room._id;
       await booking.save({ session });
+      if (input.action === "check_out" && booking.physicalRoomId) {
+        await synchronizePhysicalRoomOperationalStatus({
+          tenantId: input.tenantId, propertyId: input.propertyId,
+          physicalRoomId: booking.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
+          session, source: "housekeeping_task",
+        });
+      }
       await AuditLog.create([{
         tenantId: input.tenantId, propertyId: input.propertyId,
         actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
@@ -304,6 +314,19 @@ export async function transitionBookingStay(input: {
 
       if (input.action === "check_in") {
         if (booking.status !== "confirmed") throw new BookingLifecycleError("Only confirmed bookings can be checked in.", "INVALID_BOOKING_STATE");
+        const [openHousekeeping, openMaintenance] = await Promise.all([
+          HousekeepingTask.exists({
+            tenantId: input.tenantId, propertyId: input.propertyId, physicalRoomId: booking.physicalRoomId,
+            status: { $in: ["open", "in_progress"] },
+          }).session(session),
+          MaintenanceWorkOrder.exists({
+            tenantId: input.tenantId, propertyId: input.propertyId, physicalRoomId: booking.physicalRoomId,
+            status: { $in: ["open", "in_progress", "blocked"] },
+          }).session(session),
+        ]);
+        if (openHousekeeping || openMaintenance) {
+          throw new BookingLifecycleError("The assigned room has unfinished housekeeping or maintenance work. Resolve the tasks before check-in.", "ROOM_NOT_AVAILABLE");
+        }
         const room = await PhysicalRoom.findOneAndUpdate({
           _id: booking.physicalRoomId, tenantId: input.tenantId, propertyId: input.propertyId, status: "ready",
         }, { $set: { status: "occupied" } }, { new: true, session });
