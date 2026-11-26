@@ -158,7 +158,10 @@ export async function assignPhysicalRoom(input: {
         throw new BookingLifecycleError("A room can only be assigned to a pending or confirmed booking.", "INVALID_BOOKING_STATE");
       }
       if (!booking.roomTypeId) throw new BookingLifecycleError("This legacy booking has no room type. Migrate it before assigning a physical room.", "ROOM_TYPE_MISMATCH");
-      if (booking.physicalRoomId) throw new BookingLifecycleError("A physical room is already assigned. Unassign it before changing rooms.", "INVALID_BOOKING_STATE");
+      if (booking.physicalRoomId?.toString() === input.physicalRoomId) {
+        result = booking.toObject() as unknown as Record<string, unknown>;
+        return;
+      }
 
       // Touch the room document inside the transaction. Concurrent assignments to the
       // same room serialize on this write, while non-overlapping future stays remain valid.
@@ -207,7 +210,56 @@ export async function assignPhysicalRoom(input: {
         actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
         action: "booking.physical_room.assigned", resourceType: "booking",
         resourceId: booking._id.toString(), outcome: "success",
-        metadata: { physicalRoomId: room._id.toString(), roomNumber: room.roomNumber },
+        metadata: { previousPhysicalRoomId: booking.physicalRoomId?.toString() ?? null, physicalRoomId: room._id.toString(), roomNumber: room.roomNumber },
+      }], { session });
+      result = booking.toObject() as unknown as Record<string, unknown>;
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+    return result;
+  } catch (error) {
+    if (error instanceof BookingLifecycleError) throw error;
+    return transactionError(error);
+  } finally {
+    await session.endSession();
+  }
+}
+
+
+export async function unassignPhysicalRoom(input: {
+  tenantId: mongoose.Types.ObjectId;
+  propertyId: mongoose.Types.ObjectId;
+  bookingId: string;
+  actorUserId: string;
+}) {
+  await dbConnect();
+  if (!mongoose.isValidObjectId(input.bookingId) || !mongoose.isValidObjectId(input.actorUserId)) {
+    throw new BookingLifecycleError("Booking was not found.", "BOOKING_NOT_FOUND");
+  }
+  const session = await mongoose.startSession();
+  let result: Record<string, unknown> | null = null;
+  try {
+    await session.withTransaction(async () => {
+      const booking = await Booking.findOne({
+        _id: new mongoose.Types.ObjectId(input.bookingId),
+        tenantId: input.tenantId,
+        propertyId: input.propertyId,
+      }).session(session);
+      if (!booking) throw new BookingLifecycleError("Booking was not found.", "BOOKING_NOT_FOUND");
+      if (!["pending", "confirmed"].includes(booking.status)) {
+        throw new BookingLifecycleError("Rooms can only be unassigned before check-in.", "INVALID_BOOKING_STATE");
+      }
+      if (!booking.physicalRoomId) {
+        result = booking.toObject() as unknown as Record<string, unknown>;
+        return;
+      }
+      const previousRoomId = booking.physicalRoomId.toString();
+      booking.physicalRoomId = null;
+      await booking.save({ session });
+      await AuditLog.create([{
+        tenantId: input.tenantId, propertyId: input.propertyId,
+        actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
+        action: "booking.physical_room.unassigned", resourceType: "booking",
+        resourceId: booking._id.toString(), outcome: "success",
+        metadata: { previousPhysicalRoomId: previousRoomId },
       }], { session });
       result = booking.toObject() as unknown as Record<string, unknown>;
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
