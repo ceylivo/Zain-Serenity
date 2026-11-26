@@ -108,6 +108,21 @@ export async function GET(request: Request, context: RouteContext) {
   const url = new URL(request.url);
   const page = Math.max(1, Math.min(10000, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1));
   const limit = Math.max(1, Math.min(100, Number.parseInt(url.searchParams.get("limit") ?? "20", 10) || 20));
+  const status = url.searchParams.get("status") ?? "";
+  const checkInFrom = url.searchParams.get("checkInFrom") ?? "";
+  const checkInTo = url.searchParams.get("checkInTo") ?? "";
+  const search = (url.searchParams.get("search") ?? "").trim();
+  const allowedStatuses = ["pending", "confirmed", "checked_in", "checked_out", "cancelled", "no_show"];
+  if (status && !allowedStatuses.includes(status)) return errorResponse("INVALID_FILTER", "Unsupported booking status filter.", 422);
+  if ((checkInFrom && !isValidDateOnly(checkInFrom)) || (checkInTo && !isValidDateOnly(checkInTo))) {
+    return errorResponse("INVALID_FILTER", "Date filters must use YYYY-MM-DD.", 422);
+  }
+  if (checkInFrom && checkInTo && checkInFrom > checkInTo) {
+    return errorResponse("INVALID_FILTER", "The start date must not be after the end date.", 422);
+  }
+  if (search && !mongoose.isValidObjectId(search)) {
+    return errorResponse("INVALID_FILTER", "Search must be a complete booking reference.", 422);
+  }
   await dbConnect();
 
   const filter: Record<string, unknown> = {
@@ -115,6 +130,14 @@ export async function GET(request: Request, context: RouteContext) {
     propertyId: property.propertyId,
   };
   if (!canReadAll) filter.userId = session.user.id;
+  if (status) filter.status = status;
+  if (search) filter._id = new mongoose.Types.ObjectId(search);
+  if (checkInFrom || checkInTo) {
+    const checkIn: Record<string, Date> = {};
+    if (checkInFrom) checkIn.$gte = parseDateOnly(checkInFrom);
+    if (checkInTo) checkIn.$lt = new Date(parseDateOnly(checkInTo).getTime() + 86400000);
+    filter.checkIn = checkIn;
+  }
 
   const [items, total] = await Promise.all([
     Booking.find(filter)
