@@ -86,11 +86,12 @@ export async function PATCH(request: Request, context: Context) {
       const updated = await InventoryBlock.findOneAndUpdate(
         { _id: blockId, tenantId: access.tenantId, propertyId: access.propertyId, remainingQuantity: { $gte: Number(quantity) }, status: { $ne: "released" } },
         { $inc: { remainingQuantity: -Number(quantity), releasedQuantity: Number(quantity) },
-          $set: { lastReleasedBy: new mongoose.Types.ObjectId(session.user.id), lastReleasedAt: new Date(),
-            status: block.remainingQuantity - Number(quantity) === 0 ? "released" : "partially_released" } },
+          $set: { lastReleasedBy: new mongoose.Types.ObjectId(session.user.id), lastReleasedAt: new Date() } },
         { new: true, session: sessionDb }
       );
       if (!updated) throw new Error("BLOCK_ALREADY_CHANGED");
+      updated.status = updated.remainingQuantity === 0 ? "released" : "partially_released";
+      await updated.save({ session: sessionDb });
       updatedBlock = { id: updated._id.toString(), remainingQuantity: updated.remainingQuantity, releasedQuantity: updated.releasedQuantity, status: updated.status };
       await AuditLog.create([{
         tenantId: access.tenantId, propertyId: access.propertyId,
