@@ -56,7 +56,7 @@ export default function PaymentSettingsPage() {
   }, [authStatus, router]);
 
   useEffect(() => {
-    if (!tenantSlug) { setProperties([]); setPropertySlug(""); return; }
+    if (!tenantSlug) return;
     let active = true;
     void (async () => {
       try {
@@ -74,8 +74,6 @@ export default function PaymentSettingsPage() {
     if (!tenantSlug || !propertySlug) { setSettings(empty); return; }
     let active = true;
     void (async () => {
-      setLoading(true);
-      setError("");
       try {
         const response = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/payment-settings`, { cache: "no-store" });
         const body = await response.json();
@@ -120,8 +118,8 @@ export default function PaymentSettingsPage() {
         {error && <div role="alert" className="flex gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><AlertCircle size={18}/>{error}</div>}
         {notice && <div role="status" className="flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={18}/>{notice}</div>}
         <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-slate-700">Tenant<select value={tenantSlug} onChange={(event) => setTenantSlug(event.target.value)} className={inputClass}>{memberships.map((item) => <option key={item.id} value={item.tenant.slug}>{item.tenant.name}</option>)}</select></label>
-          <label className="text-sm font-medium text-slate-700">Property<select value={propertySlug} onChange={(event) => setPropertySlug(event.target.value)} className={inputClass}>{properties.map((item) => <option key={item._id} value={item.slug}>{item.name} · {item.currency}</option>)}</select></label>
+          <label className="text-sm font-medium text-slate-700">Tenant<select value={tenantSlug} onChange={(event) => { setProperties([]); setPropertySlug(""); setSettings(empty); setTenantSlug(event.target.value); }} className={inputClass}>{memberships.map((item) => <option key={item.id} value={item.tenant.slug}>{item.tenant.name}</option>)}</select></label>
+          <label className="text-sm font-medium text-slate-700">Property<select value={propertySlug} onChange={(event) => { setSettings(empty); setPropertySlug(event.target.value); }} className={inputClass}>{properties.map((item) => <option key={item._id} value={item.slug}>{item.name} · {item.currency}</option>)}</select></label>
         </section>
         {!canManage ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Only a tenant owner can edit payment settings. Your access remains read-only.</div> : <form onSubmit={save} className="space-y-5">
           <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
