@@ -8,6 +8,7 @@ import { isRecord, readString } from "@/lib/inputValidation";
 import { createPaymentAttempt, PaymentLifecycleError } from "@/lib/paymentLifecycle";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/models/Payment";
 import Payment from "@/models/Payment";
+import PaymentSettings from "@/models/PaymentSettings";
 import Booking from "@/models/Booking";
 import dbConnect from "@/lib/dbConnect";
 
@@ -30,6 +31,12 @@ export async function POST(request: Request, context: Context) {
   const idempotencyKey = readString(request.headers.get("idempotency-key"), { min: 8, max: 128 });
   if (!bookingId || !mongoose.isValidObjectId(bookingId) || !method || !PAYMENT_METHODS.includes(method) || !idempotencyKey) {
     return fail("VALIDATION_ERROR", "Provide a valid bookingId, payment method and Idempotency-Key header.", 422);
+  }
+
+  await dbConnect();
+  const settings = await PaymentSettings.findOne({ tenantId: property.tenantId, propertyId: property.propertyId }).select("enabledMethods").lean();
+  if (!settings?.enabledMethods.includes(method as Exclude<PaymentMethod, "stripe">)) {
+    return fail("PAYMENT_METHOD_DISABLED", "This payment method is not enabled for this property.", 422);
   }
 
   try {
