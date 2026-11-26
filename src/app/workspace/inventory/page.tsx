@@ -10,7 +10,10 @@ type Property = { _id: string; name: string; slug: string; currency: string };
 type RoomType = { _id: string; name: string; slug: string; currency: string; baseNightlyRate: number; inventoryCount: number; maxAdults: number; maxChildren: number; status: string };
 type RatePlan = { _id: string; roomTypeId: string; name: string; code: string; currency: string; nightlyRate: number; taxRatePercent: number; minimumNights: number; isActive: boolean };
 type PhysicalRoom = { _id: string; roomTypeId: string; roomNumber: string; floor?: string; status: string };
+type Availability = { startDate: string; endDate: string; dates: string[]; roomTypes: { roomTypeId: string; name: string; currency: string; inventory: { date: string; totalRooms: number; availableRooms: number; reservedRooms: number; blockedRooms: number }[] }[] };
 type ApiBody<T> = { data?: T; error?: { message?: string } };
+function localDateKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
+function shiftDateKey(value: string, days: number) { const date = new Date(`${value}T00:00:00.000Z`); date.setUTCDate(date.getUTCDate()+days); return date.toISOString().slice(0,10); }
 
 const input = "mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900";
 const canManageRoles = ["tenant_owner", "property_manager"];
@@ -42,6 +45,9 @@ export default function InventoryWorkspacePage() {
   const [rateTax, setRateTax] = useState("0");
   const [roomNumber, setRoomNumber] = useState("");
   const [roomFloor, setRoomFloor] = useState("");
+  const [calendarStart, setCalendarStart] = useState(() => localDateKey(new Date()));
+  const [availability, setAvailability] = useState<Availability | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   const membership = useMemo(() => memberships.find((item) => item.tenant.slug === tenantSlug), [memberships, tenantSlug]);
   const canManage = canManageRoles.includes(membership?.role ?? "");
@@ -112,6 +118,25 @@ export default function InventoryWorkspacePage() {
     return () => { active = false; };
   }, [tenantSlug, propertySlug, loadInventory]);
 
+  useEffect(() => {
+    if (!tenantSlug || !propertySlug) { setAvailability(null); return; }
+    let active = true;
+    const endDate = shiftDateKey(calendarStart, 13);
+    setCalendarLoading(true);
+    void (async () => {
+      try {
+        const base = `/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}`;
+        const response = await fetch(`${base}/inventory/availability?startDate=${calendarStart}&endDate=${endDate}`, { cache: "no-store" });
+        const body = await response.json() as ApiBody<Availability>;
+        if (!response.ok) throw new Error(body.error?.message || "Unable to load room availability.");
+        if (active) setAvailability(body.data ?? null);
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : "Unable to load room availability.");
+      } finally { if (active) setCalendarLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [tenantSlug, propertySlug, calendarStart]);
+
   const submit = async (event: React.FormEvent, endpoint: "room-types" | "rate-plans" | "physical-rooms", body: Record<string, unknown>) => {
     event.preventDefault();
     setSaving(true); setError(""); setNotice("");
@@ -147,6 +172,19 @@ export default function InventoryWorkspacePage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4"><DoorOpen className="mb-2 text-teal-700"/><p className="text-2xl font-bold">{physicalRooms.length}</p><p className="text-sm text-slate-600">Physical rooms</p></div>
           </div>
           <div className="flex justify-end"><button onClick={() => { setLoading(true); void loadInventory(tenantSlug, propertySlug).catch((cause) => setError(cause instanceof Error ? cause.message : "Refresh failed.")).finally(() => setLoading(false)); }} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={15}/>Refresh inventory</button></div>
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><h2 className="text-lg font-semibold text-slate-950">Room availability calendar</h2><p className="text-sm text-slate-500">14-day room-type availability · reserved and blocked inventory</p></div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setCalendarStart((value) => shiftDateKey(value,-14))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">Previous</button>
+                <input aria-label="Calendar start date" type="date" value={calendarStart} onChange={(event) => setCalendarStart(event.target.value)} className={input}/>
+                <button type="button" onClick={() => setCalendarStart((value) => shiftDateKey(value,14))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">Next</button>
+              </div>
+            </div>
+            {calendarLoading && <p className="text-sm text-slate-500"><Loader2 className="mr-2 inline animate-spin" size={14}/>Loading availability…</p>}
+            {!calendarLoading && availability && availability.roomTypes.length > 0 ? <div className="overflow-x-auto"><table className="min-w-full border-collapse text-left text-xs"><thead><tr><th className="sticky left-0 bg-white p-2 text-slate-600">Room type</th>{availability.dates.map((day) => <th key={day} className="min-w-16 border-b border-slate-100 p-2 text-center font-medium text-slate-500">{day.slice(5)}</th>)}</tr></thead><tbody>{availability.roomTypes.map((room) => <tr key={room.roomTypeId}><th className="sticky left-0 border-b border-slate-100 bg-white p-2 font-semibold text-slate-800">{room.name}</th>{room.inventory.map((day) => <td key={day.date} className="border-b border-slate-100 p-2 text-center"><span className={`inline-flex min-w-8 justify-center rounded-md px-2 py-1 font-semibold ${day.availableRooms === 0 ? "bg-rose-100 text-rose-800" : day.availableRooms <= 2 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{day.availableRooms}</span><span className="mt-1 block text-[10px] text-slate-400">{day.reservedRooms} res · {day.blockedRooms} blk</span></td>)}</tr>)}</tbody></table></div> : !calendarLoading && <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">Create an active room type to see its availability calendar.</p>}
+            <p className="text-xs text-slate-500">Each cell shows available rooms. Red means sold out; amber means 1–2 rooms remain. The calendar uses server-side inventory records and property-scoped data.</p>
+          </section>
           {canManage ? <div className="grid gap-5 lg:grid-cols-3">
             <form onSubmit={(event) => void submit(event, "room-types", { name: roomName, slug: roomSlug, currency: properties.find((p) => p.slug === propertySlug)?.currency ?? "PKR", baseNightlyRate: Number(roomPrice), inventoryCount: Number(roomInventory), maxAdults: Number(roomAdults), maxChildren: Number(roomChildren) })} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
               <h2 className="font-semibold text-slate-900">Add room type</h2>
