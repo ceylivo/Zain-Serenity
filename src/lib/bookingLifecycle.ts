@@ -54,7 +54,7 @@ export async function cancelTenantBooking(input: {
       }).session(session);
       if (!booking) throw new BookingLifecycleError("Booking was not found.", "BOOKING_NOT_FOUND");
       if (booking.status === "cancelled") {
-        result = booking.toObject() as Record<string, unknown>;
+        result = booking.toObject() as unknown as Record<string, unknown>;
         return;
       }
       if (booking.status !== "pending" && booking.status !== "confirmed") {
@@ -101,7 +101,7 @@ export async function cancelTenantBooking(input: {
         action: "booking.cancelled", resourceType: "booking",
         resourceId: booking._id.toString(), outcome: "success",
       }], { session });
-      result = updated.toObject() as Record<string, unknown>;
+      result = updated.toObject() as unknown as Record<string, unknown>;
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
     return result;
   } catch (error) {
@@ -189,7 +189,7 @@ export async function assignPhysicalRoom(input: {
         resourceId: booking._id.toString(), outcome: "success",
         metadata: { physicalRoomId: room._id.toString(), roomNumber: room.roomNumber },
       }], { session });
-      result = booking.toObject() as Record<string, unknown>;
+      result = booking.toObject() as unknown as Record<string, unknown>;
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
     return result;
   } catch (error) {
