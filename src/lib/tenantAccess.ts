@@ -66,7 +66,6 @@ export async function resolveTenantAccess(input: {
     const assignedProperties = membership.propertyIds ?? [];
     if (
       membership.role !== "tenant_owner" &&
-      assignedProperties.length > 0 &&
       !assignedProperties.some((id) => id.equals(property._id))
     ) {
       return { ok: false, reason: "permission_denied" };
