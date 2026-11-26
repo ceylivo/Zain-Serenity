@@ -71,7 +71,7 @@ export default function PaymentSettingsPage() {
   }, [tenantSlug]);
 
   useEffect(() => {
-    if (!tenantSlug || !propertySlug) { setSettings(empty); return; }
+    if (!tenantSlug || !propertySlug) return;
     let active = true;
     void (async () => {
       try {
