@@ -49,3 +49,12 @@ test("guest cancellation is restricted to the authenticated booking owner", asyn
   assert.match(route, /const canCancelAny = staffAccess\.ok/);
   assert.match(route, /if \(!canCancelAny\)/);
 });
+
+test("booking cancellation releases only unsettled payment attempts", async () => {
+  const service = await read("../../src/lib/bookingLifecycle.ts");
+  assert.match(service, /payment\.status === "pending_verification"/);
+  assert.match(service, /payment\.status === "pending" && payment\.isActive/);
+  assert.match(service, /payment\.status = "cancelled"/);
+  assert.match(service, /payment\.isActive = false/);
+  assert.match(service, /payment\.status === "succeeded"/);
+});
