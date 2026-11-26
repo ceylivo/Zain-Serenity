@@ -3,23 +3,20 @@ import mongoose from "mongoose";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveTenantAccess } from "@/lib/tenantAccess";
+import { resolvePublicProperty } from "@/lib/publicProperty";
 import { isRecord, isValidDateOnly, readInteger, readString } from "@/lib/inputValidation";
 import { createInventoryBooking, InventoryReservationError } from "@/lib/inventoryReservation";
 import Booking from "@/models/Booking";
 import dbConnect from "@/lib/dbConnect";
 
 export const runtime = "nodejs";
-
-type RouteContext = {
-  params: Promise<{ tenantSlug: string; propertySlug: string }>;
-};
-
-function parseDateOnly(value: string): Date {
-  return new Date(`${value}T00:00:00.000Z`);
-}
+type RouteContext = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
 
 function errorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message } }, { status });
+}
+function parseDateOnly(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -29,18 +26,11 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const { tenantSlug, propertySlug } = await context.params;
-  const access = await resolveTenantAccess({
-    userId: session.user.id,
-    tenantSlug,
-    propertySlug,
-    permission: "booking:create",
-  });
-
-  if (!access.ok) {
-    const status = access.reason === "tenant_not_found" || access.reason === "property_not_found" ? 404 : 403;
-    return errorResponse(access.reason.toUpperCase(), "You do not have access to create bookings for this property.", status);
+  const property = await resolvePublicProperty({ tenantSlug, propertySlug });
+  if (!property.ok) {
+    const status = property.reason === "tenant_unavailable" ? 403 : 404;
+    return errorResponse(property.reason.toUpperCase(), "This property is not available for booking.", status);
   }
-  if (!access.propertyId) return errorResponse("PROPERTY_CONTEXT_REQUIRED", "A property context is required.", 400);
 
   let body: unknown;
   try {
@@ -48,7 +38,6 @@ export async function POST(request: Request, context: RouteContext) {
   } catch {
     return errorResponse("INVALID_JSON", "Request body must be valid JSON", 400);
   }
-
   if (!isRecord(body)) return errorResponse("VALIDATION_ERROR", "A JSON object is required", 422);
 
   const roomTypeId = readString(body.roomTypeId, { min: 24, max: 24 });
@@ -70,8 +59,8 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const booking = await createInventoryBooking({
-      tenantId: access.tenantId,
-      propertyId: access.propertyId,
+      tenantId: property.tenantId,
+      propertyId: property.propertyId,
       userId: session.user.id,
       roomTypeId,
       ratePlanId,
@@ -81,7 +70,6 @@ export async function POST(request: Request, context: RouteContext) {
       children,
       specialRequests,
     });
-
     return NextResponse.json({ data: booking }, { status: 201 });
   } catch (error) {
     if (error instanceof InventoryReservationError) {
@@ -103,18 +91,19 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const { tenantSlug, propertySlug } = await context.params;
-  const access = await resolveTenantAccess({
+  const property = await resolvePublicProperty({ tenantSlug, propertySlug });
+  if (!property.ok) {
+    const status = property.reason === "tenant_unavailable" ? 403 : 404;
+    return errorResponse(property.reason.toUpperCase(), "This property is not available.", status);
+  }
+
+  const staffAccess = await resolveTenantAccess({
     userId: session.user.id,
     tenantSlug,
     propertySlug,
     permission: "booking:read",
   });
-
-  if (!access.ok) {
-    const status = access.reason === "tenant_not_found" || access.reason === "property_not_found" ? 404 : 403;
-    return errorResponse(access.reason.toUpperCase(), "You do not have access to bookings for this property.", status);
-  }
-  if (!access.propertyId) return errorResponse("PROPERTY_CONTEXT_REQUIRED", "A property context is required.", 400);
+  const canReadAll = staffAccess.ok && Boolean(staffAccess.propertyId?.equals(property.propertyId));
 
   const url = new URL(request.url);
   const page = Math.max(1, Math.min(10000, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1));
@@ -122,18 +111,14 @@ export async function GET(request: Request, context: RouteContext) {
   await dbConnect();
 
   const filter: Record<string, unknown> = {
-    tenantId: access.tenantId,
-    propertyId: access.propertyId,
+    tenantId: property.tenantId,
+    propertyId: property.propertyId,
   };
-  if (access.role === "tenant_owner" || access.role === "property_manager" || access.role === "booking_manager" || access.role === "receptionist" || access.role === "payment_verifier") {
-    // These roles may view bookings for the property they are authorized to manage.
-  } else {
-    filter.userId = session.user.id;
-  }
+  if (!canReadAll) filter.userId = session.user.id;
 
   const [items, total] = await Promise.all([
     Booking.find(filter)
-      .select("userId roomId roomTypeId ratePlanId checkIn checkOut guests children totalPrice currency pricing paymentStatus status specialRequests createdAt updatedAt")
+      .select("userId roomId roomTypeId physicalRoomId ratePlanId checkIn checkOut guests children totalPrice currency pricing paymentStatus status specialRequests createdAt updatedAt")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
