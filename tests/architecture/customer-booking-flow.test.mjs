@@ -4,23 +4,21 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("tenant booking journey loads only public room, rate and payment settings APIs", async () => {
+test("tenant booking journey loads public room, rate and payment settings APIs", async () => {
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
-  assert.ok(page.includes("/room-types"));
-  assert.ok(page.includes("/rate-plans"));
-  assert.ok(page.includes("/payment-settings"));
+  for (const endpoint of ["/room-types", "/rate-plans", "/payment-settings"]) assert.ok(page.includes(endpoint));
   assert.ok(page.includes("Promise.all"));
 });
 
-test("customer reservation submits room and rate IDs without a client price", async () => {
+test("customer reservation sends identifiers and dates, never a client total", async () => {
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
   assert.ok(page.includes("${base}/bookings"));
   assert.ok(page.includes("roomTypeId, ratePlanId, checkIn, checkOut, guests, children, specialRequests"));
-  assert.ok(!page.includes("body: JSON.stringify({ roomTypeId, ratePlanId, checkIn, checkOut, guests, children, specialRequests, totalPrice"));
+  assert.ok(!page.includes("totalPrice:"));
   assert.ok(page.includes("booking.totalPrice"));
 });
 
-test("customer payment attempt uses an idempotency key and server-owned booking amount", async () => {
+test("customer payment attempt is idempotent and does not submit an amount", async () => {
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
   assert.ok(page.includes('"Idempotency-Key": crypto.randomUUID()'));
   assert.ok(page.includes("bookingId: booking._id, method"));
@@ -28,7 +26,7 @@ test("customer payment attempt uses an idempotency key and server-owned booking 
   assert.ok(!page.includes("amount: booking.totalPrice"));
 });
 
-test("manual payment proof is submitted as multipart to the protected receipt route", async () => {
+test("receipt is submitted as multipart to the protected receipt endpoint", async () => {
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
   assert.ok(page.includes('form.set("file", receipt)'));
   assert.ok(page.includes("${base}/payments/${payment._id}/receipt"));
@@ -36,8 +34,8 @@ test("manual payment proof is submitted as multipart to the protected receipt ro
   assert.ok(page.includes("5 MB"));
 });
 
-test("cash on arrival is shown as pending until property staff records collection", async () => {
+test("cash-on-arrival remains pending until staff collection", async () => {
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
   assert.ok(page.includes("Property staff will record cash when received."));
-  assert.ok(page.includes("payment.method === \"cash_on_arrival\""));\n  assert.ok(page.includes("Property staff will record cash when received."));
+  assert.ok(page.includes('payment.method === "cash_on_arrival"'));
 });
