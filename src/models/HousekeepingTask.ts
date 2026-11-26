@@ -35,6 +35,7 @@ const HousekeepingTaskSchema = new Schema<IHousekeepingTask>({
 
 HousekeepingTaskSchema.index({ tenantId: 1, propertyId: 1, status: 1, dueAt: 1 });
 HousekeepingTaskSchema.index({ tenantId: 1, propertyId: 1, physicalRoomId: 1, createdAt: -1 });
+HousekeepingTaskSchema.index({ tenantId: 1, propertyId: 1, physicalRoomId: 1, dueAt: 1 });
 HousekeepingTaskSchema.index({ tenantId: 1, propertyId: 1, assignedTo: 1, status: 1 });
 
 const HousekeepingTask: Model<IHousekeepingTask> =
