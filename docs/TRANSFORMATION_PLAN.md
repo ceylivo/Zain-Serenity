@@ -335,3 +335,11 @@ The room operations timeline now resolves assigned staff display names for house
 Housekeeping now includes client-side task search (title, description, room and assignee), status filtering, total/active/overdue workload indicators, and an explicit empty-filter state. Maintenance now includes search across work-order title, description, room and assignee, status and priority filters, plus total/active/overdue KPIs. These controls filter the tenant/property-scoped records already returned by the APIs; the existing API response cap remains in place, so server-side filtering and pagination are a later scale improvement.
 
 The checkout turnover task is created from the booking stay transition after the booking is saved, within the same MongoDB transaction. It is not part of physical-room assignment or unassignment. This keeps the automatic cleaning workflow tied to the actual guest check-out event.
+
+## Property operations overview dashboard
+
+A tenant/property-scoped operations dashboard is now available at `/workspace` and is the first workspace navigation entry. Its authenticated API requires `booking:read`, resolves the selected tenant and property through the existing access layer, validates a date-only query, and scopes all booking, physical-room, housekeeping and maintenance reads to the authorized tenant/property.
+
+The dashboard reports daily arrivals/departures, currently checked-in stays, bookings created on the selected date, unpaid/pending/failed booking counts, physical-room readiness by state, open and overdue housekeeping, open and urgent maintenance, and a capped next-seven-day arrival/departure list with room numbers resolved only within the same property. It deliberately does not label booking value as revenue: actual settled-payment reconciliation is a separate financial workflow. Date boundaries and display are explicitly UTC until property-level timezone configuration is introduced.
+
+The workspace now has a property overview with KPI cards, room-readiness distribution, operational attention links and upcoming stay activity. This is an initial operational dashboard, not yet a full analytics suite: revenue, occupancy trend charts, channel/source attribution, export, configurable property timezone, server-side activity pagination and richer role-specific dashboard layouts remain future work.
