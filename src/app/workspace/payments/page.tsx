@@ -85,11 +85,16 @@ export default function WorkspacePaymentsPage() {
   }, [authStatus, router]);
 
   useEffect(() => {
-    if (!tenantSlug) { setProperties([]); setPropertySlug(""); return; }
     let active = true;
-    setLoading(true);
-    setError("");
-    (async () => {
+    const loadProperties = async () => {
+      if (!tenantSlug) {
+        setProperties([]);
+        setPropertySlug("");
+        setPayments([]);
+        return;
+      }
+      setLoading(true);
+      setError("");
       try {
         const response = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties`, { cache: "no-store" });
         const body = await response.json();
@@ -103,17 +108,28 @@ export default function WorkspacePaymentsPage() {
       } finally {
         if (active) setLoading(false);
       }
-    })();
+    };
+    void loadProperties();
     return () => { active = false; };
   }, [tenantSlug]);
 
   useEffect(() => {
-    if (!tenantSlug || !propertySlug) { setPayments([]); return; }
     let active = true;
-    setLoading(true);
-    loadPayments(tenantSlug, propertySlug)
-      .catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Unable to load payments."); })
-      .finally(() => { if (active) setLoading(false); });
+    const refreshPayments = async () => {
+      if (!tenantSlug || !propertySlug) {
+        setPayments([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        await loadPayments(tenantSlug, propertySlug);
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : "Unable to load payments.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void refreshPayments();
     return () => { active = false; };
   }, [tenantSlug, propertySlug, loadPayments]);
 
