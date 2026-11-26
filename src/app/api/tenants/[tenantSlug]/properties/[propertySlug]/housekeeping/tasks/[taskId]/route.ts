@@ -8,6 +8,7 @@ import dbConnect from "@/lib/dbConnect";
 import Membership from "@/models/Membership";
 import HousekeepingTask, { HOUSEKEEPING_TASK_STATUSES } from "@/models/HousekeepingTask";
 import AuditLog from "@/models/AuditLog";
+import { synchronizePhysicalRoomOperationalStatus } from "@/lib/roomOperationalSync";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string; taskId: string }> };
@@ -47,21 +48,42 @@ export async function PATCH(request: Request, context: Context) {
     }).select("_id").lean();
     if (!member) return fail("INVALID_ASSIGNEE", "Assignee must be an active member assigned to this property", 422);
   }
-  const before = { status: task.status, assignedTo: task.assignedTo?.toString() ?? null, dueAt: task.dueAt?.toISOString() ?? null };
-  if (status !== undefined && status !== task.status) {
-    task.status = status as (typeof HOUSEKEEPING_TASK_STATUSES)[number];
-    task.statusHistory.push({ status: task.status, changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date() });
+  const sessionDb = await mongoose.startSession();
+  try {
+    await sessionDb.withTransaction(async () => {
+      const current = await HousekeepingTask.findOne({
+        _id: taskId, tenantId: access.tenantId, propertyId: access.propertyId,
+      }).session(sessionDb);
+      if (!current) throw new Error("TASK_NOT_FOUND");
+      const before = { status: current.status, assignedTo: current.assignedTo?.toString() ?? null, dueAt: current.dueAt?.toISOString() ?? null };
+      if (status !== undefined && status !== current.status) {
+        current.status = status as (typeof HOUSEKEEPING_TASK_STATUSES)[number];
+        current.statusHistory.push({ status: current.status, changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date() });
+      }
+      if (body.assignedTo !== undefined) current.assignedTo = assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined;
+      if (body.dueAt !== undefined) current.dueAt = dueAt ?? undefined;
+      current.completedAt = current.status === "completed" ? current.completedAt ?? new Date() : undefined;
+      await current.save({ session: sessionDb });
+      await synchronizePhysicalRoomOperationalStatus({
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        physicalRoomId: current.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        session: sessionDb, source: "housekeeping_task",
+      });
+      await AuditLog.create([{
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        action: "housekeeping.task.updated", resourceType: "housekeeping_task",
+        resourceId: current._id.toString(), outcome: "success",
+        metadata: { before, after: { status: current.status, assignedTo: current.assignedTo?.toString() ?? null, dueAt: current.dueAt?.toISOString() ?? null } },
+      }], { session: sessionDb });
+      Object.assign(task, current.toObject());
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+  } catch (error) {
+    if (error instanceof Error && error.message === "TASK_NOT_FOUND") return fail("TASK_NOT_FOUND", "Housekeeping task was not found in this property", 404);
+    console.error("Housekeeping task update failed", error);
+    return fail("TASK_UPDATE_FAILED", "Unable to update the task and room state atomically. Refresh and retry.", 503);
+  } finally {
+    await sessionDb.endSession();
   }
-  if (body.assignedTo !== undefined) task.assignedTo = assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined;
-  if (body.dueAt !== undefined) task.dueAt = dueAt ?? undefined;
-  task.completedAt = task.status === "completed" ? task.completedAt ?? new Date() : undefined;
-  await task.save();
-  await AuditLog.create({
-    tenantId: access.tenantId, propertyId: access.propertyId,
-    actorUserId: new mongoose.Types.ObjectId(session.user.id),
-    action: "housekeeping.task.updated", resourceType: "housekeeping_task",
-    resourceId: task._id.toString(), outcome: "success",
-    metadata: { before, after: { status: task.status, assignedTo: task.assignedTo?.toString() ?? null, dueAt: task.dueAt?.toISOString() ?? null } },
-  });
   return NextResponse.json({ data: task });
 }
