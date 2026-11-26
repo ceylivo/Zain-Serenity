@@ -205,3 +205,16 @@ A tenant/property-scoped booking entry point is now available at `/book/{tenantS
 - Cash remains pending until staff explicitly records collection.
 
 This is an additional SaaS route; the legacy `/booking` and `/api/bookings` flow is intentionally preserved while property-specific links and legacy migration are completed. The new route requires an authenticated customer account. Customer self-service booking history, cancellation UI, accessibility/localization polish and full E2E coverage remain follow-up work.
+
+
+## Customer self-service booking history — initial integration
+
+The legacy `/my-bookings` page now reads from `GET /api/my-bookings`, a signed-in-user-scoped endpoint that aggregates bookings across tenants and properties.
+
+- Booking queries are restricted to the authenticated user's own records.
+- Results include tenant/property labels, room type, booking state, independent payment state, and payment attempts.
+- Pagination is server-side and bounded.
+- Customer cancellation calls the tenant/property lifecycle endpoint for that booking; the server re-checks ownership, permission, payment state and inventory transaction rules.
+- Legacy bookings remain visible with fallback labels when they do not have SaaS tenant/property metadata.
+
+The customer self-service history integration is initial, not a replacement for staff booking operations. Receipt viewing from customer history, retry/reselection after a failed attempt, notification delivery and full browser E2E coverage remain follow-up work.
