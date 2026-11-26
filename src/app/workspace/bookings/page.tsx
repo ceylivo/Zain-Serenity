@@ -97,7 +97,7 @@ export default function BookingOperationsPage() {
     return () => { active = false; };
   }, [tenantSlug, propertySlug]);
 
-  const act = async (booking: Booking, action: "assign" | "check_in" | "check_out") => {
+  const act = async (booking: Booking, action: "assign" | "confirm" | "check_in" | "check_out") => {
     setBusy(booking._id); setError(""); setNotice("");
     const base = `/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/bookings/${booking._id}`;
     try {
@@ -112,7 +112,7 @@ export default function BookingOperationsPage() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error?.message || "Booking operation failed.");
       await loadOperationalData(tenantSlug, propertySlug);
-      setNotice(action === "assign" ? "Physical room assigned." : action === "check_in" ? "Guest checked in." : "Guest checked out. Room moved to cleaning.");
+      setNotice(action === "assign" ? "Physical room assigned." : action === "confirm" ? "Booking confirmed." : action === "check_in" ? "Guest checked in." : "Guest checked out. Room moved to cleaning.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to complete booking operation."); }
     finally { setBusy(""); }
   };
@@ -150,6 +150,7 @@ export default function BookingOperationsPage() {
             <p className="text-sm text-slate-600">Physical room: <strong className="text-slate-900">{assigned ? assigned.roomNumber : booking.physicalRoomId ? "Assigned room not in current list" : "Not assigned"}</strong></p>
             {booking.specialRequests && <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Guest requests: {booking.specialRequests}</p>}
             {canOperate && <div className="flex flex-wrap items-center gap-2">
+              {canOperate && booking.status === "pending" && <button onClick={() => void act(booking,"confirm")} disabled={Boolean(busy)} className="rounded-xl border border-teal-200 px-3 py-2 text-sm font-semibold text-teal-800 disabled:opacity-50">Confirm booking</button>}
               {allowedAssign && <><select aria-label="Select physical room" className={input} value={assignments[booking._id] ?? ""} onChange={(event) => setAssignments((current) => ({ ...current, [booking._id]: event.target.value }))}><option value="">Choose ready room</option>{matchingRooms.map((room) => <option key={room._id} value={room._id}>{room.roomNumber}</option>)}</select><button onClick={() => void act(booking,"assign")} disabled={Boolean(busy) || !assignments[booking._id]} className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Assign room</button></>}
               {booking.status === "confirmed" && booking.physicalRoomId && <button onClick={() => void act(booking,"check_in")} disabled={Boolean(busy)} className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"><LogIn size={15}/>Check in</button>}
               {booking.status === "checked_in" && <button onClick={() => void act(booking,"check_out")} disabled={Boolean(busy)} className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"><LogOut size={15}/>Check out</button>}
