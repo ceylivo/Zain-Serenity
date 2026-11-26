@@ -48,11 +48,17 @@ export async function updateHousekeepingStatus(input: {
         throw new HousekeepingError(`Room cannot transition from ${room.status} to ${input.status}.`, "INVALID_ROOM_STATE");
       }
       if (input.status === "ready" || input.status === "maintenance" || input.status === "out_of_service") {
+        const statuses = input.status === "ready" ? ["checked_in"] : ["pending", "confirmed", "checked_in"];
         const activeBooking = await (await import("@/models/Booking")).default.exists({
           tenantId: input.tenantId, propertyId: input.propertyId,
-          physicalRoomId: room._id, status: "checked_in",
+          physicalRoomId: room._id, status: { $in: statuses },
         }).session(session);
-        if (activeBooking) throw new HousekeepingError("A room assigned to an in-house guest cannot be marked ready or unavailable.", "INVALID_ROOM_STATE");
+        if (activeBooking) throw new HousekeepingError(
+          input.status === "ready"
+            ? "A room assigned to an in-house guest cannot be marked ready."
+            : "A room with an active booking assignment cannot be marked unavailable.",
+          "INVALID_ROOM_STATE"
+        );
       }
       const updated = await PhysicalRoom.findOneAndUpdate(
         { _id: room._id, tenantId: input.tenantId, propertyId: input.propertyId, status: room.status },
