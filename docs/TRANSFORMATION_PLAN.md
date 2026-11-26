@@ -311,3 +311,13 @@ A property-scoped room timeline API and workspace now consolidate overlapping bo
 
 The timeline is an operational read model, not a new source of truth: booking, housekeeping and maintenance records remain authoritative in their existing domains. Live room-state automation, staff display-name hydration, event pagination for very high-volume properties, and end-to-end/replica-set verification remain follow-up work.
 Compound indexes have also been added for room-scoped booking overlap and housekeeping/maintenance due-date timeline reads so the consolidated view can scale more predictably as operational records grow.
+
+## Shared workspace experience and product identity
+
+A shared responsive workspace shell now wraps all `/workspace/*` routes. It provides consistent desktop sidebar navigation, mobile navigation, active-route indication and a unified content frame for bookings, room timeline, inventory, housekeeping, maintenance and payments. Workspace routes no longer render the legacy public-site navbar/footer. Application metadata has been changed from single-resort marketing copy to hospitality SaaS product positioning.
+
+This is the first UX consistency layer, not the completed visual redesign. Remaining UI/UX work includes a true workspace overview/dashboard, consistent page headers and KPI patterns, table/filter/form component system, skeleton/empty/error states, accessible dialogs and confirmations, mobile workflow testing, dark mode, English/Urdu catalogues and RTL, and a redesigned SaaS public landing page. The existing root homepage still contains legacy single-property marketing content and must be redesigned before public product presentation.
+
+## Deployment and preview decision
+
+GitHub Pages is not a suitable runtime for this application: it depends on Next.js server routes, authenticated sessions, MongoDB, private receipt uploads and payment webhooks. The application needs a server-capable deployment (for example Vercel or a Node/container host) with a transaction-capable MongoDB deployment and private object storage. GitHub Pages may host static documentation only, not the functioning SaaS platform. Public deployment is intentionally deferred until core workflows, security review, migrations, secrets, backup/restore and production CI acceptance are complete.
