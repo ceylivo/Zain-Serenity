@@ -97,3 +97,8 @@ An initial tenant-scoped staff payment review screen is available at `/workspace
 The property-scoped customer entry point is `/book/{tenantSlug}/{propertySlug}`. It consumes the public room-type, rate-plan and payment-settings endpoints, then posts the selected room/rate IDs to the inventory booking API. It does not send a price. The server response is the source of truth for the displayed booking total.
 
 After reservation, customers can create an idempotent manual payment attempt and submit a receipt using multipart form data to the protected receipt route. Cash-on-arrival remains pending until staff collection is recorded. Stripe is not offered by this flow because test-mode checkout and webhook verification are not implemented.
+
+
+## Customer booking history
+
+The `/my-bookings` customer page uses the authenticated `/api/my-bookings` endpoint. The endpoint aggregates each user's bookings across tenant/property boundaries while keeping the query anchored to the session user ID, and includes payment attempts scoped to the same user. Booking state and payment state are displayed independently. Cancellation actions call the corresponding tenant/property cancellation endpoint and therefore retain the server-side payment and inventory lifecycle safeguards.
