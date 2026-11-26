@@ -81,8 +81,9 @@ export async function POST(request: Request, context: Context) {
     return fail("RECEIPT_UPLOAD_FAILED", "Unable to upload receipt. Please retry.", 502);
   }
 
+  let savedReceiptId: mongoose.Types.ObjectId | null = null;
   try {
-    await PaymentReceipt.create({
+    const savedReceipt = await PaymentReceipt.create({
       tenantId: property.tenantId, propertyId: property.propertyId,
       paymentId: payment._id, bookingId: payment.bookingId,
       uploadedBy: new mongoose.Types.ObjectId(session.user.id),
@@ -90,6 +91,7 @@ export async function POST(request: Request, context: Context) {
       resourceType: uploaded.resource_type, mimeType: detected.mime,
       fileSize: file.size, originalName: file.name.slice(0, 180) || `receipt.${detected.format}`,
     });
+    savedReceiptId = savedReceipt._id;
     const updated = await submitPaymentProof({
       tenantId: property.tenantId, propertyId: property.propertyId,
       paymentId, userId: session.user.id,
@@ -98,7 +100,7 @@ export async function POST(request: Request, context: Context) {
     return NextResponse.json({ data: { payment: updated, receiptSubmitted: true } }, { status: 201 });
   } catch (error) {
     await cloudinary.uploader.destroy(uploaded.public_id, { resource_type: "image", type: "authenticated" }).catch(() => undefined);
-    await PaymentReceipt.deleteOne({ paymentId: payment._id }).catch(() => undefined);
+    if (savedReceiptId) await PaymentReceipt.deleteOne({ _id: savedReceiptId }).catch(() => undefined);
     if (error instanceof PaymentLifecycleError) return fail(error.code, error.message, 422);
     console.error("Payment receipt metadata save failed", error);
     return fail("RECEIPT_SAVE_FAILED", "Unable to save receipt details.", 500);
@@ -129,7 +131,8 @@ export async function GET(_request: Request, context: Context) {
   }).lean();
   if (!receipt) return fail("RECEIPT_NOT_FOUND", "No receipt has been uploaded.", 404);
   try {
-    const url = cloudinary.utils.private_download_url(receipt.storageKey, "jpg", {
+    const format = receipt.mimeType === "image/png" ? "png" : receipt.mimeType === "image/webp" ? "webp" : "jpg";
+    const url = cloudinary.utils.private_download_url(receipt.storageKey, format, {
       expires_at: Math.floor(Date.now() / 1000) + 300,
       attachment: false,
     });
