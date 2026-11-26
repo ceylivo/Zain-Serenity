@@ -39,6 +39,12 @@ export default function MaintenanceWorkspacePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const visibleOrders = useMemo(() => orders.filter((order) => {
     const matchesStatus = statusFilter === "all" || order.status === statusFilter;
@@ -47,7 +53,7 @@ export default function MaintenanceWorkspacePage() {
     const haystack = [order.title, order.description, room?.roomNumber ?? "", assignees.find((member) => member.id === order.assignedTo)?.name ?? ""].join(" ").toLowerCase();
     return matchesStatus && matchesPriority && haystack.includes(search.trim().toLowerCase());
   }), [orders, rooms, assignees, statusFilter, priorityFilter, search]);
-  const overdueCount = useMemo(() => orders.filter((order) => order.dueAt && new Date(order.dueAt).getTime() < Date.now() && !["completed", "cancelled"].includes(order.status)).length, [orders]);
+  const overdueCount = useMemo(() => currentTime ? orders.filter((order) => order.dueAt && new Date(order.dueAt).getTime() < currentTime && !["completed", "cancelled"].includes(order.status)).length : 0, [orders, currentTime]);
   const activeCount = orders.filter((order) => ["open", "in_progress", "blocked"].includes(order.status)).length;
 
   const base = tenantSlug && propertySlug ? `/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}` : "";
