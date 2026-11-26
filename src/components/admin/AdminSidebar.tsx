@@ -24,6 +24,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/rooms", label: "Rooms", icon: DoorOpen },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
+  { href: "/workspace/inventory", label: "Room Inventory", icon: DoorOpen },
   { href: "/workspace/payments", label: "SaaS Payments", icon: CreditCard },
   { href: "/workspace/payment-settings", label: "Payment Settings", icon: Settings },
   { href: "/admin/gallery", label: "Gallery", icon: ImageIcon },
