@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveTenantAccess } from "@/lib/tenantAccess";
+import { resolvePublicProperty } from "@/lib/publicProperty";
 import { isRecord, readInteger, readString } from "@/lib/inputValidation";
 import dbConnect from "@/lib/dbConnect";
 import RoomType from "@/models/RoomType";
@@ -14,13 +15,21 @@ type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> }
 const fail = (code: string, message: string, status: number) => NextResponse.json({ error: { code, message } }, { status });
 
 export async function GET(_request: Request, context: Context) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !mongoose.isValidObjectId(session.user.id)) return fail("UNAUTHENTICATED", "Authentication required", 401);
   const { tenantSlug, propertySlug } = await context.params;
-  const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "inventory:read" });
-  if (!access.ok || !access.propertyId) return fail("FORBIDDEN", "Rate plan access denied", 403);
+  const property = await resolvePublicProperty({ tenantSlug, propertySlug });
+  if (!property.ok) {
+    const status = property.reason === "tenant_unavailable" ? 403 : 404;
+    return fail(property.reason.toUpperCase(), "This property is not available.", status);
+  }
   await dbConnect();
-  const items = await RatePlan.find({ tenantId: access.tenantId, propertyId: access.propertyId }).sort({ name: 1 }).lean();
+  const items = await RatePlan.find({
+    tenantId: property.tenantId,
+    propertyId: property.propertyId,
+    isActive: true,
+  })
+    .select("roomTypeId name code description currency nightlyRate taxRatePercent isRefundable minimumNights maximumNights")
+    .sort({ name: 1 })
+    .lean();
   return NextResponse.json({ data: items });
 }
 
