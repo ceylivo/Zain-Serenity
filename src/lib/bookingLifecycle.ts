@@ -256,7 +256,7 @@ export async function transitionBookingStay(input: {
         }, { $set: { status: "occupied" } }, { new: true, session });
         if (!room) throw new BookingLifecycleError("Assigned room is not ready. Check its housekeeping status.", "ROOM_NOT_AVAILABLE");
         booking.status = "checked_in";
-      } else {
+      } else if (input.action === "check_out") {
         if (booking.status !== "checked_in") throw new BookingLifecycleError("Only checked-in bookings can be checked out.", "INVALID_BOOKING_STATE");
         const room = await PhysicalRoom.findOneAndUpdate({
           _id: booking.physicalRoomId, tenantId: input.tenantId, propertyId: input.propertyId, status: "occupied",
@@ -270,7 +270,7 @@ export async function transitionBookingStay(input: {
         actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
         action: input.action === "confirm" ? "booking.confirmed" : input.action === "check_in" ? "booking.checked_in" : "booking.checked_out",
         resourceType: "booking", resourceId: booking._id.toString(), outcome: "success",
-        metadata: { physicalRoomId: booking.physicalRoomId.toString() },
+        metadata: booking.physicalRoomId ? { physicalRoomId: booking.physicalRoomId.toString() } : {},
       }], { session });
       result = booking.toObject() as unknown as Record<string, unknown>;
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
