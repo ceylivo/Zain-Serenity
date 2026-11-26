@@ -44,3 +44,23 @@ test("inventory workspace renders a 14-day availability calendar", async () => {
   assert.ok(page.includes("setCalendarStart"));
   assert.ok(page.includes("availableRooms"));
 });
+
+test("inventory block API is tenant scoped, date bounded and transactional", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/route.ts");
+  assert.ok(route.includes('permission: "inventory:manage"'));
+  assert.ok(route.includes("dates.length > 31"));
+  assert.ok(route.includes("sessionDb.withTransaction(async"));
+  assert.ok(route.includes("availableRooms: { $gte: Number(quantity) }"));
+  assert.ok(route.includes("blockedRooms: { $gte: Number(quantity) }"));
+  assert.ok(route.includes("legacyReservedByDate"));
+  assert.ok(route.includes("AuditLog.create"));
+});
+
+test("inventory workspace exposes reasoned date-range block and unblock controls", async () => {
+  const page = await read("../../src/app/workspace/inventory/page.tsx");
+  assert.ok(page.includes("/inventory/blocks"));
+  assert.ok(page.includes('value="block"'));
+  assert.ok(page.includes('value="unblock"'));
+  assert.ok(page.includes("blockReason"));
+  assert.ok(page.includes("Reserved rooms cannot be blocked."));
+});
