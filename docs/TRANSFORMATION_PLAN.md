@@ -282,3 +282,9 @@ Tenant owners and property managers can block or release sellable room-type inve
 - Accounts for overlapping legacy active bookings when first materializing inventory-day records.
 
 This is a quantity-based inventory adjustment, not an individually reversible block record. A future operations phase should introduce first-class block records with per-block IDs, actor, reason, timestamps and partial-release history before offering granular cancellation of individual blocks.
+
+## Booking operations: search, filters and pagination
+
+The property-scoped booking list API supports server-side pagination (`page`, `limit`), status filtering, check-in date range filtering (`checkInFrom`, `checkInTo`) and exact booking-ID lookup (`search`).
+
+All filters are applied after tenant and property scope is established. Non-staff users remain restricted to their own bookings. Invalid statuses, malformed dates, reversed date ranges and non-ObjectId search references are rejected rather than silently broadening the query. The operations workspace exposes these filters and keeps pagination server-side.
