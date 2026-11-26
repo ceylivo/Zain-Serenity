@@ -9,6 +9,7 @@ import PhysicalRoom from "@/models/PhysicalRoom";
 import Membership from "@/models/Membership";
 import MaintenanceWorkOrder, { MAINTENANCE_PRIORITIES } from "@/models/MaintenanceWorkOrder";
 import AuditLog from "@/models/AuditLog";
+import { synchronizePhysicalRoomOperationalStatus } from "@/lib/roomOperationalSync";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
@@ -71,20 +72,39 @@ export async function POST(request: Request, context: Context) {
   if (assignedTo && !(await validAssignee(assignedTo, access.tenantId, access.propertyId))) {
     return fail("INVALID_ASSIGNEE", "Assignee must be an active owner, property manager or housekeeping member assigned to this property", 422);
   }
-  const order = await MaintenanceWorkOrder.create({
-    tenantId: access.tenantId, propertyId: access.propertyId,
-    physicalRoomId: physicalRoomId ? new mongoose.Types.ObjectId(physicalRoomId) : undefined,
-    title, description: description ?? "", priority: priority as (typeof MAINTENANCE_PRIORITIES)[number], dueAt,
-    assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
-    createdBy: new mongoose.Types.ObjectId(session.user.id),
-    statusHistory: [{ status: "open", changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date(), note: "Work order created" }],
-  });
-  await AuditLog.create({
-    tenantId: access.tenantId, propertyId: access.propertyId,
-    actorUserId: new mongoose.Types.ObjectId(session.user.id),
-    action: "maintenance.work_order.created", resourceType: "maintenance_work_order",
-    resourceId: order._id.toString(), outcome: "success",
-    metadata: { physicalRoomId: physicalRoomId ?? null, priority, assignedTo: assignedTo ?? null, dueAt: dueAt?.toISOString() ?? null },
-  });
-  return NextResponse.json({ data: order }, { status: 201 });
+  const sessionDb = await mongoose.startSession();
+  let createdOrder: Record<string, unknown> | null = null;
+  try {
+    await sessionDb.withTransaction(async () => {
+      const [order] = await MaintenanceWorkOrder.create([{
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        physicalRoomId: physicalRoomId ? new mongoose.Types.ObjectId(physicalRoomId) : undefined,
+        title, description: description ?? "", priority: priority as (typeof MAINTENANCE_PRIORITIES)[number], dueAt,
+        assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
+        createdBy: new mongoose.Types.ObjectId(session.user.id),
+        statusHistory: [{ status: "open", changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date(), note: "Work order created" }],
+      }], { session: sessionDb });
+      if (order.physicalRoomId) {
+        await synchronizePhysicalRoomOperationalStatus({
+          tenantId: access.tenantId, propertyId: access.propertyId,
+          physicalRoomId: order.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+          session: sessionDb, source: "maintenance_work_order",
+        });
+      }
+      await AuditLog.create([{
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        action: "maintenance.work_order.created", resourceType: "maintenance_work_order",
+        resourceId: order._id.toString(), outcome: "success",
+        metadata: { physicalRoomId: physicalRoomId ?? null, priority, assignedTo: assignedTo ?? null, dueAt: dueAt?.toISOString() ?? null },
+      }], { session: sessionDb });
+      createdOrder = order.toObject() as unknown as Record<string, unknown>;
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+  } catch (error) {
+    console.error("Maintenance work order creation failed", error);
+    return fail("WORK_ORDER_CREATE_FAILED", "Unable to create the work order and update room state atomically. Refresh and retry.", 503);
+  } finally {
+    await sessionDb.endSession();
+  }
+  return NextResponse.json({ data: createdOrder }, { status: 201 });
 }
