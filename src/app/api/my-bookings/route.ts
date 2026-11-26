@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   const bookingIds = bookings.map((item) => item._id);
 
   const [tenants, properties, roomTypes, payments] = await Promise.all([
-    Tenant.find({ _id: { $in: tenantIds }, status: "active" }).select("name slug").lean(),
+    Tenant.find({ _id: { $in: tenantIds } }).select("name slug").lean(),
     Property.find({ _id: { $in: propertyIds } }).select("name slug currency").lean(),
     RoomType.find({ _id: { $in: roomTypeIds } }).select("name").lean(),
     Payment.find({ bookingId: { $in: bookingIds }, userId: new mongoose.Types.ObjectId(session.user.id) })
