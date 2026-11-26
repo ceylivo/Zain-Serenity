@@ -3,7 +3,10 @@ import mongoose from "mongoose";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveTenantAccess } from "@/lib/tenantAccess";
+import { resolvePublicProperty } from "@/lib/publicProperty";
 import { cancelTenantBooking, BookingLifecycleError } from "@/lib/bookingLifecycle";
+import Booking from "@/models/Booking";
+import dbConnect from "@/lib/dbConnect";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string; bookingId: string }> };
@@ -15,24 +18,39 @@ export async function POST(_request: Request, context: Context) {
   }
 
   const { tenantSlug, propertySlug, bookingId } = await context.params;
-  const access = await resolveTenantAccess({
+  const property = await resolvePublicProperty({ tenantSlug, propertySlug });
+  if (!property.ok) {
+    const status = property.reason === "tenant_unavailable" ? 403 : 404;
+    return NextResponse.json({ error: { code: property.reason.toUpperCase(), message: "This property is not available." } }, { status });
+  }
+
+  const staffAccess = await resolveTenantAccess({
     userId: session.user.id,
     tenantSlug,
     propertySlug,
     permission: "booking:cancel",
   });
-  if (!access.ok) {
-    const status = access.reason === "tenant_not_found" || access.reason === "property_not_found" ? 404 : 403;
-    return NextResponse.json({ error: { code: access.reason.toUpperCase(), message: "You do not have permission to cancel bookings for this property." } }, { status });
-  }
-  if (!access.propertyId) {
-    return NextResponse.json({ error: { code: "PROPERTY_CONTEXT_REQUIRED", message: "A property context is required." } }, { status: 400 });
+  const canCancelAny = staffAccess.ok && Boolean(staffAccess.propertyId?.equals(property.propertyId));
+
+  // Guests may cancel only their own booking. Staff with the explicit permission
+  // may cancel any booking in the resolved tenant/property scope.
+  if (!canCancelAny) {
+    await dbConnect();
+    const ownedBooking = await Booking.exists({
+      _id: mongoose.isValidObjectId(bookingId) ? new mongoose.Types.ObjectId(bookingId) : null,
+      tenantId: property.tenantId,
+      propertyId: property.propertyId,
+      userId: session.user.id,
+    });
+    if (!ownedBooking) {
+      return NextResponse.json({ error: { code: "BOOKING_NOT_FOUND", message: "Booking was not found." } }, { status: 404 });
+    }
   }
 
   try {
     const booking = await cancelTenantBooking({
-      tenantId: access.tenantId,
-      propertyId: access.propertyId,
+      tenantId: property.tenantId,
+      propertyId: property.propertyId,
       bookingId,
       actorUserId: session.user.id,
     });
