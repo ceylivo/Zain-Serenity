@@ -87,7 +87,7 @@ export async function POST(request: Request, context: Context) {
       if (order.physicalRoomId) {
         await synchronizePhysicalRoomOperationalStatus({
           tenantId: access.tenantId, propertyId: access.propertyId,
-          physicalRoomId: order.physicalRoomId as mongoose.Types.ObjectId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+          physicalRoomId: order.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
           session: sessionDb, source: "maintenance_work_order",
         });
       }
