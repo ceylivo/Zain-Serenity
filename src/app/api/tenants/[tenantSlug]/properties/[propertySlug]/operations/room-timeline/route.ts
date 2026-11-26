@@ -9,6 +9,7 @@ import PhysicalRoom from "@/models/PhysicalRoom";
 import Booking from "@/models/Booking";
 import HousekeepingTask from "@/models/HousekeepingTask";
 import MaintenanceWorkOrder from "@/models/MaintenanceWorkOrder";
+import User from "@/models/User";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
@@ -49,10 +50,18 @@ export async function GET(request: Request, context: Context) {
       .select("_id physicalRoomId title description priority status assignedTo dueAt completedAt statusHistory createdAt updatedAt").sort({ dueAt: 1, createdAt: 1 }).limit(1000).lean(),
   ]);
 
+  const assigneeIds = [...new Set([...tasks, ...workOrders]
+    .map((item) => item.assignedTo?.toString())
+    .filter((id): id is string => Boolean(id)))];
+  const staff = assigneeIds.length
+    ? await User.find({ _id: { $in: assigneeIds } }).select("name email").lean()
+    : [];
+  const staffById = new Map(staff.map((member) => [member._id.toString(), member.name || member.email || "Team member"]));
+
   const events: {
     id: string; roomId: string; type: string; title: string; description?: string;
     startAt: Date; endAt?: Date; status: string; priority?: string; assignedTo?: string;
-    sourceId: string; activity?: boolean;
+    assignedToName?: string; sourceId: string; activity?: boolean;
   }[] = [];
   for (const booking of bookings) {
     if (!booking.physicalRoomId) continue;
@@ -67,7 +76,7 @@ export async function GET(request: Request, context: Context) {
     events.push({
       id: `housekeeping:${task._id}`, sourceId: task._id.toString(), roomId, type: "housekeeping",
       title: task.title, description: task.description, startAt: task.dueAt ?? task.createdAt,
-      status: task.status, assignedTo: task.assignedTo?.toString(),
+      status: task.status, assignedTo: task.assignedTo?.toString(), assignedToName: task.assignedTo ? staffById.get(task.assignedTo.toString()) : undefined,
     });
     for (const [index, entry] of (task.statusHistory ?? []).entries()) {
       if (entry.changedAt >= start && entry.changedAt < end) events.push({
@@ -83,7 +92,7 @@ export async function GET(request: Request, context: Context) {
     events.push({
       id: `maintenance:${order._id}`, sourceId: order._id.toString(), roomId, type: "maintenance",
       title: order.title, description: order.description, startAt: order.dueAt ?? order.createdAt,
-      status: order.status, priority: order.priority, assignedTo: order.assignedTo?.toString(),
+      status: order.status, priority: order.priority, assignedTo: order.assignedTo?.toString(), assignedToName: order.assignedTo ? staffById.get(order.assignedTo.toString()) : undefined,
     });
     for (const [index, entry] of (order.statusHistory ?? []).entries()) {
       if (entry.changedAt >= start && entry.changedAt < end) events.push({
