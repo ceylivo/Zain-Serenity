@@ -41,3 +41,11 @@ test("physical room status is not used as a date-blind reservation lock", async 
   assert.match(model, /assignmentVersion: \{ type: Number, required: true, default: 0/);
   assert.doesNotMatch(service, /status: "reserved"/);
 });
+
+test("guest cancellation is restricted to the authenticated booking owner", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/bookings/[bookingId]/cancel/route.ts");
+  assert.match(route, /userId: session\.user\.id/);
+  assert.match(route, /tenantId: property\.tenantId,[\s\S]*propertyId: property\.propertyId/);
+  assert.match(route, /const canCancelAny = staffAccess\.ok/);
+  assert.match(route, /if \(!canCancelAny\)/);
+});
