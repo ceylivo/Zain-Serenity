@@ -41,8 +41,13 @@ export default function BookingOperationsPage() {
   const loadOperationalData = useCallback(async (tenant: string, property: string) => {
     if (!tenant || !property) return;
     const base = `/api/tenants/${encodeURIComponent(tenant)}/properties/${encodeURIComponent(property)}`;
+    const params = new URLSearchParams({ page: String(bookingPage), limit: "20" });
+    if (statusFilter) params.set("status", statusFilter);
+    if (dateFrom) params.set("checkInFrom", dateFrom);
+    if (dateTo) params.set("checkInTo", dateTo);
+    if (bookingSearch.trim()) params.set("search", bookingSearch.trim());
     const [bookingResponse, roomResponse] = await Promise.all([
-      fetch(`${base}/bookings?page=1&limit=100`, { cache: "no-store" }),
+      fetch(`${base}/bookings?${params.toString()}`, { cache: "no-store" }),
       fetch(`${base}/physical-rooms`, { cache: "no-store" }),
     ]);
     const [bookingBody, roomBody] = await Promise.all([
@@ -52,8 +57,9 @@ export default function BookingOperationsPage() {
     if (!bookingResponse.ok) throw new Error(bookingBody.error?.message || "Unable to load bookings. Check your booking:read permission.");
     if (!roomResponse.ok) throw new Error(roomBody.error?.message || "Unable to load physical rooms. Check your inventory:read permission.");
     setBookings(Array.isArray(bookingBody.data) ? bookingBody.data : []);
+    setPagination(bookingBody.pagination ?? { page: bookingPage, limit: 20, total: 0, pages: 0 });
     setRooms(Array.isArray(roomBody.data) ? roomBody.data : []);
-  }, []);
+  }, [bookingPage, statusFilter, dateFrom, dateTo, bookingSearch]);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login?callbackUrl=/workspace/bookings");
