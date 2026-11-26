@@ -46,6 +46,7 @@ export async function GET(_request: Request, context: Context) {
     title: task.title, description: task.description, status: task.status,
     assignedTo: task.assignedTo?.toString() ?? null, dueAt: task.dueAt ?? null,
     createdBy: task.createdBy.toString(), completedAt: task.completedAt ?? null,
+    statusHistory: task.statusHistory.map((entry) => ({ status: entry.status, changedBy: entry.changedBy.toString(), changedAt: entry.changedAt })),
     createdAt: task.createdAt, updatedAt: task.updatedAt,
   })) });
 }
@@ -78,6 +79,7 @@ export async function POST(request: Request, context: Context) {
     tenantId: access.tenantId, propertyId: access.propertyId, physicalRoomId: room._id,
     title, description: description ?? "", assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
     dueAt, createdBy: new mongoose.Types.ObjectId(session.user.id),
+    statusHistory: [{ status: "open", changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date() }],
   });
   await AuditLog.create({
     tenantId: access.tenantId, propertyId: access.propertyId,
