@@ -44,3 +44,11 @@ test("maintenance create and update synchronize room state atomically with work-
     assert.ok(route.includes('source: "maintenance_work_order"'));
   }
 });
+test("maintenance workspace exposes search, status and priority filters with overdue KPIs", async () => {
+  const page = await read("../../src/app/workspace/maintenance/page.tsx");
+  assert.ok(page.includes("statusFilter"));
+  assert.ok(page.includes("priorityFilter"));
+  assert.ok(page.includes("visibleOrders"));
+  assert.ok(page.includes("overdueCount"));
+  assert.ok(page.includes("Overdue · needs attention"));
+});
