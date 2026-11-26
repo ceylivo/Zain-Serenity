@@ -218,3 +218,16 @@ The legacy `/my-bookings` page now reads from `GET /api/my-bookings`, a signed-i
 - Legacy bookings remain visible with fallback labels when they do not have SaaS tenant/property metadata.
 
 The customer self-service history integration is initial, not a replacement for staff booking operations. Receipt viewing from customer history, retry/reselection after a failed attempt, notification delivery and full browser E2E coverage remain follow-up work.
+
+
+## Tenant-owner payment settings workspace — initial integration
+
+A property-scoped owner interface is available at `/workspace/payment-settings`.
+
+- Tenant and property are selected from the signed-in user's memberships and scoped property API.
+- Owners can enable/disable bank transfer, Easypaisa, JazzCash and cash-on-arrival and configure the corresponding customer instructions.
+- The UI only exposes editing controls to tenant owners; the API independently enforces `payment:manage`.
+- Stripe is intentionally not exposed until test-mode checkout and signed webhook verification are implemented.
+- The settings route is included in the SaaS lint workflow and has architecture regression coverage.
+
+The workspace is an initial settings screen. Sensitive credential management, payment-provider reconciliation, subscription billing and Stripe remain separate future work.
