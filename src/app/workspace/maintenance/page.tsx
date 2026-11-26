@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Building2, Loader2, RefreshCw, Wrench } from "lucide-react";
@@ -36,6 +36,19 @@ export default function MaintenanceWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [search, setSearch] = useState("");
+
+  const visibleOrders = useMemo(() => orders.filter((order) => {
+    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+    const matchesPriority = priorityFilter === "all" || order.priority === priorityFilter;
+    const room = rooms.find((item) => item._id === order.physicalRoomId);
+    const haystack = [order.title, order.description, room?.roomNumber ?? "", assignees.find((member) => member.id === order.assignedTo)?.name ?? ""].join(" ").toLowerCase();
+    return matchesStatus && matchesPriority && haystack.includes(search.trim().toLowerCase());
+  }), [orders, rooms, assignees, statusFilter, priorityFilter, search]);
+  const overdueCount = useMemo(() => orders.filter((order) => order.dueAt && new Date(order.dueAt).getTime() < Date.now() && !["completed", "cancelled"].includes(order.status)).length, [orders]);
+  const activeCount = orders.filter((order) => ["open", "in_progress", "blocked"].includes(order.status)).length;
 
   const base = tenantSlug && propertySlug ? `/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}` : "";
   const refresh = useCallback(async (tenant: string, property: string) => {
@@ -157,8 +170,18 @@ export default function MaintenanceWorkspacePage() {
         <label className="text-sm">Description<input maxLength={2000} className={input} value={description} onChange={(event) => setDescription(event.target.value)}/></label>
         <div className="sm:col-span-2 lg:col-span-3"><button disabled={busy || !title.trim()} className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Create work order"}</button></div>
       </form>
-      <section className="space-y-3"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-slate-950">Work orders</h2><span className="text-sm text-slate-500">{orders.length} records</span></div>
-        {orders.length === 0 ? <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500"><Wrench className="mx-auto mb-2" size={24}/>No maintenance work orders yet.</div> : orders.map((order) => {
+      <section className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-2xl font-bold text-slate-950">{orders.length}</p><p className="text-sm text-slate-500">Total work orders</p></div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-2xl font-bold text-slate-950">{activeCount}</p><p className="text-sm text-slate-500">Active work orders</p></div>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4"><p className="text-2xl font-bold text-rose-800">{overdueCount}</p><p className="text-sm text-rose-700">Overdue · needs attention</p></div>
+      </section>
+      <section className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-950">Work orders</h2><p className="text-sm text-slate-500">{visibleOrders.length} of {orders.length} records</p></div></div>
+        <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-3">
+          <label className="text-sm">Search<input className={input} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, room or assignee"/></label>
+          <label className="text-sm">Status<select className={input} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option>{statuses.map((value) => <option key={value} value={value}>{pretty(value)}</option>)}</select></label>
+          <label className="text-sm">Priority<select className={input} value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value="all">All priorities</option>{priorities.map((value) => <option key={value} value={value}>{pretty(value)}</option>)}</select></label>
+        </div>
+        {orders.length === 0 ? <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500"><Wrench className="mx-auto mb-2" size={24}/>No maintenance work orders yet.</div> : visibleOrders.length === 0 ? <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500">No work orders match these filters.</div> : visibleOrders.map((order) => {
           const room = rooms.find((item) => item._id === order.physicalRoomId);
           return <article key={order.id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-slate-950">{order.title}</h3><p className="mt-1 text-sm text-slate-500">{room ? `Room ${room.roomNumber}` : "Property-wide"} · {order.description || "No description"}</p><p className="mt-1 text-xs text-slate-500">Assignee: {assignees.find((member) => member.id === order.assignedTo)?.name ?? "Unassigned"} · Due: {order.dueAt ? new Date(order.dueAt).toLocaleString() : "No deadline"}</p></div><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase">{order.priority}</span></div>
