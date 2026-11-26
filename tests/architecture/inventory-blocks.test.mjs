@@ -39,5 +39,6 @@ test("partial release targets one tenant-scoped block and atomically updates dai
 test("legacy quantity-based unblock remains supported for backwards compatibility", async () => {
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/route.ts");
   assert.ok(route.includes("INSUFFICIENT_BLOCKED_INVENTORY"));
-  assert.ok(route.includes('action === "unblock"'));
+  assert.ok(route.includes('if (action === "block")'));
+  assert.ok(route.includes('// Legacy quantity-only unblocks remain supported for old records.'));
 });
