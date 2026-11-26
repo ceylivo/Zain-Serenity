@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveTenantAccess } from "@/lib/tenantAccess";
 import { isRecord, readString } from "@/lib/inputValidation";
-import { assignPhysicalRoom, BookingLifecycleError } from "@/lib/bookingLifecycle";
+import { assignPhysicalRoom, unassignPhysicalRoom, BookingLifecycleError } from "@/lib/bookingLifecycle";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string; bookingId: string }> };
@@ -39,19 +39,20 @@ export async function POST(request: Request, context: Context) {
   if (!isRecord(body)) {
     return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "A JSON object is required." } }, { status: 422 });
   }
-  const physicalRoomId = readString(body.physicalRoomId, { min: 24, max: 24 });
-  if (!physicalRoomId || !mongoose.isValidObjectId(physicalRoomId)) {
+  const action = body.action === undefined ? "assign" : readString(body.action, { min: 6, max: 8 });
+  if (action !== "assign" && action !== "unassign") {
+    return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "Action must be assign or unassign." } }, { status: 422 });
+  }
+  const physicalRoomId = action === "assign" ? readString(body.physicalRoomId, { min: 24, max: 24 }) : null;
+  if (action === "assign" && (!physicalRoomId || !mongoose.isValidObjectId(physicalRoomId))) {
     return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "A valid physicalRoomId is required." } }, { status: 422 });
   }
 
   try {
-    const booking = await assignPhysicalRoom({
-      tenantId: access.tenantId,
-      propertyId: access.propertyId,
-      bookingId,
-      physicalRoomId,
-      actorUserId: session.user.id,
-    });
+    const input = { tenantId: access.tenantId, propertyId: access.propertyId, bookingId, actorUserId: session.user.id };
+    const booking = action === "unassign"
+      ? await unassignPhysicalRoom(input)
+      : await assignPhysicalRoom({ ...input, physicalRoomId: physicalRoomId! });
     return NextResponse.json({ data: booking });
   } catch (error) {
     if (error instanceof BookingLifecycleError) {
