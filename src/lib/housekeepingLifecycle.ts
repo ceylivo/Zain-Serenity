@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import dbConnect from "@/lib/dbConnect";
 import PhysicalRoom, { type PhysicalRoomStatus } from "@/models/PhysicalRoom";
 import AuditLog from "@/models/AuditLog";
+import Booking, { type BookingStatus } from "@/models/Booking";
 
 export class HousekeepingError extends Error {
   constructor(message: string, public readonly code: "ROOM_NOT_FOUND" | "INVALID_ROOM_STATE" | "HOUSEKEEPING_FAILED") {
@@ -48,8 +49,8 @@ export async function updateHousekeepingStatus(input: {
         throw new HousekeepingError(`Room cannot transition from ${room.status} to ${input.status}.`, "INVALID_ROOM_STATE");
       }
       if (input.status === "ready" || input.status === "maintenance" || input.status === "out_of_service") {
-        const statuses = input.status === "ready" ? ["checked_in"] : ["pending", "confirmed", "checked_in"];
-        const activeBooking = await (await import("@/models/Booking")).default.exists({
+        const statuses: BookingStatus[] = input.status === "ready" ? ["checked_in"] : ["pending", "confirmed", "checked_in"];
+        const activeBooking = await Booking.exists({
           tenantId: input.tenantId, propertyId: input.propertyId,
           physicalRoomId: room._id, status: { $in: statuses },
         }).session(session);
