@@ -8,6 +8,7 @@ import dbConnect from "@/lib/dbConnect";
 import Membership from "@/models/Membership";
 import MaintenanceWorkOrder, { MAINTENANCE_PRIORITIES, MAINTENANCE_STATUSES } from "@/models/MaintenanceWorkOrder";
 import AuditLog from "@/models/AuditLog";
+import { synchronizePhysicalRoomOperationalStatus } from "@/lib/roomOperationalSync";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string; workOrderId: string }> };
@@ -46,21 +47,44 @@ export async function PATCH(request: Request, context: Context) {
     }).select("_id").lean();
     if (!member) return fail("INVALID_ASSIGNEE", "Assignee must be an active member assigned to this property", 422);
   }
-  const before = { status: order.status, priority: order.priority, assignedTo: order.assignedTo?.toString() ?? null, dueAt: order.dueAt?.toISOString() ?? null };
-  let statusChanged = false;
-  if (status !== undefined && status !== order.status) { order.status = status as (typeof MAINTENANCE_STATUSES)[number]; statusChanged = true; }
-  if (priority !== undefined) order.priority = priority as (typeof MAINTENANCE_PRIORITIES)[number];
-  if (body.assignedTo !== undefined) order.assignedTo = assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined;
-  if (body.dueAt !== undefined) order.dueAt = dueAt ?? undefined;
-  order.completedAt = order.status === "completed" ? order.completedAt ?? new Date() : undefined;
-  if (statusChanged) order.statusHistory.push({ status: order.status, changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date(), note: note ?? "" });
-  await order.save();
-  await AuditLog.create({
-    tenantId: access.tenantId, propertyId: access.propertyId,
-    actorUserId: new mongoose.Types.ObjectId(session.user.id),
-    action: "maintenance.work_order.updated", resourceType: "maintenance_work_order",
-    resourceId: order._id.toString(), outcome: "success",
-    metadata: { before, after: { status: order.status, priority: order.priority, assignedTo: order.assignedTo?.toString() ?? null, dueAt: order.dueAt?.toISOString() ?? null }, note: note ?? "" },
-  });
+  const sessionDb = await mongoose.startSession();
+  try {
+    await sessionDb.withTransaction(async () => {
+      const current = await MaintenanceWorkOrder.findOne({
+        _id: workOrderId, tenantId: access.tenantId, propertyId: access.propertyId,
+      }).session(sessionDb);
+      if (!current) throw new Error("WORK_ORDER_NOT_FOUND");
+      const before = { status: current.status, priority: current.priority, assignedTo: current.assignedTo?.toString() ?? null, dueAt: current.dueAt?.toISOString() ?? null };
+      let statusChanged = false;
+      if (status !== undefined && status !== current.status) { current.status = status as (typeof MAINTENANCE_STATUSES)[number]; statusChanged = true; }
+      if (priority !== undefined) current.priority = priority as (typeof MAINTENANCE_PRIORITIES)[number];
+      if (body.assignedTo !== undefined) current.assignedTo = assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined;
+      if (body.dueAt !== undefined) current.dueAt = dueAt ?? undefined;
+      current.completedAt = current.status === "completed" ? current.completedAt ?? new Date() : undefined;
+      if (statusChanged) current.statusHistory.push({ status: current.status, changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date(), note: note ?? "" });
+      await current.save({ session: sessionDb });
+      if (current.physicalRoomId) {
+        await synchronizePhysicalRoomOperationalStatus({
+          tenantId: access.tenantId, propertyId: access.propertyId,
+          physicalRoomId: current.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+          session: sessionDb, source: "maintenance_work_order",
+        });
+      }
+      await AuditLog.create([{
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        action: "maintenance.work_order.updated", resourceType: "maintenance_work_order",
+        resourceId: current._id.toString(), outcome: "success",
+        metadata: { before, after: { status: current.status, priority: current.priority, assignedTo: current.assignedTo?.toString() ?? null, dueAt: current.dueAt?.toISOString() ?? null }, note: note ?? "" },
+      }], { session: sessionDb });
+      Object.assign(order, current.toObject());
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+  } catch (error) {
+    if (error instanceof Error && error.message === "WORK_ORDER_NOT_FOUND") return fail("WORK_ORDER_NOT_FOUND", "Work order was not found in this property", 404);
+    console.error("Maintenance work order update failed", error);
+    return fail("WORK_ORDER_UPDATE_FAILED", "Unable to update the work order and room state atomically. Refresh and retry.", 503);
+  } finally {
+    await sessionDb.endSession();
+  }
   return NextResponse.json({ data: order });
 }
