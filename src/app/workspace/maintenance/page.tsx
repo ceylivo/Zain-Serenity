@@ -69,7 +69,7 @@ export default function MaintenanceWorkspacePage() {
   }, [authStatus, router]);
 
   useEffect(() => {
-    if (!tenantSlug) { setProperties([]); return; }
+    if (!tenantSlug) return;
     let active = true;
     void (async () => {
       try {
@@ -85,7 +85,10 @@ export default function MaintenanceWorkspacePage() {
   useEffect(() => {
     if (!tenantSlug || !propertySlug) return;
     let active = true;
-    void refresh(tenantSlug, propertySlug).catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Unable to load maintenance data."); });
+    void (async () => {
+      try { await refresh(tenantSlug, propertySlug); }
+      catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Unable to load maintenance data."); }
+    })();
     return () => { active = false; };
   }, [tenantSlug, propertySlug, refresh]);
 
