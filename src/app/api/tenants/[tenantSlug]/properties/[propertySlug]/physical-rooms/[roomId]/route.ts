@@ -18,10 +18,11 @@ export async function PATCH(request: Request, context: Context) {
   }
   const { tenantSlug, propertySlug, roomId } = await context.params;
   const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "inventory:housekeeping" });
-  if (!access.ok || !access.propertyId) {
+  if (!access.ok) {
     const status = access.reason === "tenant_not_found" || access.reason === "property_not_found" ? 404 : 403;
     return NextResponse.json({ error: { code: "FORBIDDEN", message: "Housekeeping permission is required for this property." } }, { status });
   }
+  if (!access.propertyId) return NextResponse.json({ error: { code: "PROPERTY_REQUIRED", message: "A property is required." } }, { status: 400 });
   let body: unknown;
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: { code: "INVALID_JSON", message: "Request body must be valid JSON." } }, { status: 400 });
