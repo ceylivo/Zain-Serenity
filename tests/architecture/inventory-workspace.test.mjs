@@ -27,3 +27,20 @@ test("inventory workspace does not submit tenant, property or price authority fi
   assert.ok(!page.includes("tenantId:"));
   assert.ok(!page.includes("propertyId:"));
 });
+
+test("availability calendar API is tenant scoped, bounded to 31 days and includes legacy bookings", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/availability/route.ts");
+  assert.ok(route.includes('permission: "inventory:read"'));
+  assert.ok(route.includes("days > 31"));
+  assert.ok(route.includes("InventoryDay.find"));
+  assert.ok(route.includes('status: { $in: ["pending", "confirmed", "checked_in"] }'));
+  assert.ok(route.includes("Math.max(day?.reservedRooms ?? 0, overlappingBookings)"));
+});
+
+test("inventory workspace renders a 14-day availability calendar", async () => {
+  const page = await read("../../src/app/workspace/inventory/page.tsx");
+  assert.ok(page.includes("/inventory/availability?startDate="));
+  assert.ok(page.includes("Room availability calendar"));
+  assert.ok(page.includes("setCalendarStart"));
+  assert.ok(page.includes("availableRooms"));
+});
