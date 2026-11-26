@@ -6,7 +6,6 @@ import { resolveTenantAccess } from "@/lib/tenantAccess";
 import { isRecord, readInteger, readString } from "@/lib/inputValidation";
 import dbConnect from "@/lib/dbConnect";
 import RoomType from "@/models/RoomType";
-import InventoryDay from "@/models/InventoryDay";
 import AuditLog from "@/models/AuditLog";
 
 export const runtime = "nodejs";
