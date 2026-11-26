@@ -17,6 +17,7 @@ export interface IPayment {
   userId: mongoose.Types.ObjectId;
   method: PaymentMethod;
   status: PaymentRecordStatus;
+  isActive: boolean;
   amount: number;
   currency: string;
   reference?: string;
@@ -38,6 +39,7 @@ const PaymentSchema = new Schema<IPayment>({
   userId: { type: Schema.Types.ObjectId, ref: "User", required: true, immutable: true, index: true },
   method: { type: String, enum: PAYMENT_METHODS, required: true },
   status: { type: String, enum: ["pending", "pending_verification", "succeeded", "failed", "cancelled", "refunded"], required: true, default: "pending", index: true },
+  isActive: { type: Boolean, required: true, default: true },
   amount: { type: Number, required: true, min: 1 },
   currency: { type: String, required: true, uppercase: true, minlength: 3, maxlength: 3 },
   reference: { type: String, trim: true, maxlength: 120 },
@@ -53,6 +55,7 @@ const PaymentSchema = new Schema<IPayment>({
 PaymentSchema.index({ tenantId: 1, propertyId: 1, idempotencyKey: 1 }, { unique: true });
 PaymentSchema.index({ tenantId: 1, propertyId: 1, status: 1, createdAt: -1 });
 PaymentSchema.index({ tenantId: 1, propertyId: 1, bookingId: 1, createdAt: -1 });
+PaymentSchema.index({ tenantId: 1, propertyId: 1, bookingId: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
 PaymentSchema.index({ providerPaymentId: 1 }, { unique: true, sparse: true });
 
 const Payment: Model<IPayment> = mongoose.models.Payment || mongoose.model<IPayment>("Payment", PaymentSchema);
