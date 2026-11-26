@@ -231,3 +231,15 @@ A property-scoped owner interface is available at `/workspace/payment-settings`.
 - The settings route is included in the SaaS lint workflow and has architecture regression coverage.
 
 The workspace is an initial settings screen. Sensitive credential management, payment-provider reconciliation, subscription billing and Stripe remain separate future work.
+
+
+## Property inventory workspace — initial management UI
+
+The `/workspace/inventory` page provides a tenant/property-scoped interface for:
+- Listing active room types, active rate plans and registered physical rooms.
+- Creating room types with capacity, occupancy and base nightly price.
+- Creating rate plans linked to a room type, with currency, nightly price, tax and stay defaults.
+- Registering physical room numbers and floor/wing labels.
+- Restricting create controls to tenant owners and property managers in the UI; all writes still pass through the server's tenant-scoped `inventory:manage` APIs.
+
+This is an initial create-and-view workflow. Editing/deactivating existing inventory, availability calendar, date-based price overrides, housekeeping status operations and booking assignment UI remain outstanding.
