@@ -27,6 +27,89 @@ function dateKeys(startDate: string, endDate: string): string[] {
   return dates;
 }
 
+
+export async function GET(_request: Request, context: Context) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || !mongoose.isValidObjectId(session.user.id)) return fail("UNAUTHENTICATED", "Authentication required", 401);
+  const { tenantSlug, propertySlug } = await context.params;
+  const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "inventory:read" });
+  if (!access.ok || !access.propertyId) return fail("FORBIDDEN", "Inventory read permission is required", 403);
+  await dbConnect();
+  const blocks = await InventoryBlock.find({ tenantId: access.tenantId, propertyId: access.propertyId })
+    .sort({ createdAt: -1 }).limit(100).lean();
+  return NextResponse.json({ data: blocks.map((block) => ({
+    id: block._id.toString(), roomTypeId: block.roomTypeId.toString(),
+    startDate: block.startDate, endDate: block.endDate, quantity: block.quantity,
+    remainingQuantity: block.remainingQuantity, releasedQuantity: block.releasedQuantity,
+    status: block.status, reason: block.reason, createdAt: block.createdAt,
+    createdBy: block.createdBy.toString(), lastReleasedAt: block.lastReleasedAt ?? null,
+  })) });
+}
+
+export async function PATCH(request: Request, context: Context) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || !mongoose.isValidObjectId(session.user.id)) return fail("UNAUTHENTICATED", "Authentication required", 401);
+  const { tenantSlug, propertySlug } = await context.params;
+  const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "inventory:manage" });
+  if (!access.ok || !access.propertyId) return fail("FORBIDDEN", "Inventory management permission is required", 403);
+  let body: unknown;
+  try { body = await request.json(); } catch { return fail("INVALID_JSON", "Request body must be valid JSON", 400); }
+  if (!isRecord(body)) return fail("VALIDATION_ERROR", "A JSON object is required", 422);
+  const blockId = readString(body.blockId, { min: 24, max: 24 });
+  const quantity = body.quantity;
+  const reason = readString(body.reason, { min: 3, max: 300 });
+  if (!blockId || !mongoose.isValidObjectId(blockId) || !Number.isInteger(quantity) || Number(quantity) < 1 || !reason) {
+    return fail("VALIDATION_ERROR", "A valid block ID, positive release quantity and reason are required", 422);
+  }
+  await dbConnect();
+  const block = await InventoryBlock.findOne({
+    _id: blockId, tenantId: access.tenantId, propertyId: access.propertyId,
+  }).lean();
+  if (!block) return fail("BLOCK_NOT_FOUND", "Inventory block was not found in this property", 404);
+  if (block.status === "released" || Number(quantity) > block.remainingQuantity) {
+    return fail("INVALID_RELEASE_QUANTITY", "Release quantity exceeds the remaining blocked quantity", 409);
+  }
+  const dates = dateKeys(block.startDate, block.endDate);
+  const scope = { tenantId: access.tenantId, propertyId: access.propertyId, roomTypeId: block.roomTypeId };
+  const sessionDb = await mongoose.startSession();
+  try {
+    let updatedBlock: Record<string, unknown> | null = null;
+    await sessionDb.withTransaction(async () => {
+      for (const date of dates) {
+        const day = await InventoryDay.findOneAndUpdate(
+          { ...scope, date, blockedRooms: { $gte: Number(quantity) } },
+          { $inc: { availableRooms: Number(quantity), blockedRooms: -Number(quantity) } },
+          { new: true, session: sessionDb }
+        );
+        if (!day) throw new Error("BLOCK_INVENTORY_INCONSISTENT");
+      }
+      const updated = await InventoryBlock.findOneAndUpdate(
+        { _id: blockId, tenantId: access.tenantId, propertyId: access.propertyId, remainingQuantity: { $gte: Number(quantity) }, status: { $ne: "released" } },
+        { $inc: { remainingQuantity: -Number(quantity), releasedQuantity: Number(quantity) },
+          $set: { lastReleasedBy: new mongoose.Types.ObjectId(session.user.id), lastReleasedAt: new Date(),
+            status: block.remainingQuantity - Number(quantity) === 0 ? "released" : "partially_released" } },
+        { new: true, session: sessionDb }
+      );
+      if (!updated) throw new Error("BLOCK_ALREADY_CHANGED");
+      updatedBlock = { id: updated._id.toString(), remainingQuantity: updated.remainingQuantity, releasedQuantity: updated.releasedQuantity, status: updated.status };
+      await AuditLog.create([{
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        action: "inventory.block.partially_released", resourceType: "inventory_block",
+        resourceId: blockId, outcome: "success",
+        metadata: { quantity: Number(quantity), reason, startDate: block.startDate, endDate: block.endDate },
+      }], { session: sessionDb });
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+    return NextResponse.json({ data: updatedBlock });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "BLOCK_INVENTORY_INCONSISTENT" || message === "BLOCK_ALREADY_CHANGED") return fail("BLOCK_CONFLICT", "This block changed or its inventory counters are inconsistent; refresh and retry", 409);
+    if (/Transaction numbers are only allowed|replica set|mongos|does not support transactions/i.test(message)) return fail("TRANSACTION_UNAVAILABLE", "Inventory changes require MongoDB transaction support", 503);
+    console.error("Inventory block release failed", error);
+    return fail("BLOCK_RELEASE_FAILED", "Unable to release this inventory block", 500);
+  } finally { await sessionDb.endSession(); }
+}
+
 export async function POST(request: Request, context: Context) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id || !mongoose.isValidObjectId(session.user.id)) {
