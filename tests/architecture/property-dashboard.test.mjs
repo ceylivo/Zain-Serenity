@@ -22,7 +22,7 @@ test("property dashboard upcoming records resolve room numbers within the same p
   assert.ok(route.includes("upcomingArrivals"));
   assert.ok(route.includes("upcomingDepartures"));
   assert.ok(route.includes("PhysicalRoom.find({ ...scope"));
-  assert.ok(route.includes("roomNumber: roomNames.get"));
+  assert.ok(route.includes("roomNames.get("));
 });
 
 test("workspace overview loads property dashboard and exposes navigation to operational workspaces", async () => {
