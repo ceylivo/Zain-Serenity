@@ -83,8 +83,27 @@ export default function MyBookingsPage() {
       router.replace("/login?callbackUrl=/my-bookings");
       return;
     }
-    if (authStatus === "authenticated") void loadBookings(1);
-  }, [authStatus, router, loadBookings]);
+    if (authStatus !== "authenticated") return;
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/my-bookings?page=1&limit=20", { cache: "no-store" });
+        const body = await response.json() as ApiResponse;
+        if (!response.ok) throw new Error(body.error?.message || "Unable to load your bookings.");
+        if (active) {
+          setBookings(Array.isArray(body.data) ? body.data : []);
+          setPages(Math.max(1, body.pagination?.pages ?? 1));
+          setPage(1);
+          setError("");
+        }
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : "Unable to load your bookings.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [authStatus, router]);
 
   const cancelBooking = async (booking: Booking) => {
     if (!booking.tenant || !booking.property) return;
