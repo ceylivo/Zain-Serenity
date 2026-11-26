@@ -80,13 +80,12 @@ export async function cancelTenantBooking(input: {
               roomTypeId: booking.roomTypeId,
               date,
               reservedRooms: { $gt: 0 },
-              availableRooms: { $lt: mongoose.trusted({ $toInt: "$totalRooms" }) as unknown as number },
+              $expr: { $lt: ["$availableRooms", "$totalRooms"] },
             },
             { $inc: { reservedRooms: -1, availableRooms: 1 } },
             { new: true, session }
           );
           if (!released) {
-            // Older bookings may predate inventory-day initialization. Do not silently fabricate stock.
             const exists = await InventoryDay.exists({
               tenantId: input.tenantId, propertyId: input.propertyId,
               roomTypeId: booking.roomTypeId, date,
@@ -94,14 +93,6 @@ export async function cancelTenantBooking(input: {
             if (exists) throw new BookingLifecycleError("Inventory counters are inconsistent; cancellation was rolled back.", "INVENTORY_INCONSISTENT");
           }
         }
-      }
-
-      if (booking.physicalRoomId) {
-        await PhysicalRoom.updateOne(
-          { _id: booking.physicalRoomId, tenantId: input.tenantId, propertyId: input.propertyId, status: "reserved" },
-          { $set: { status: "ready" } },
-          { session }
-        );
       }
 
       await AuditLog.create([{
@@ -149,6 +140,8 @@ export async function assignPhysicalRoom(input: {
       if (!booking.roomTypeId) throw new BookingLifecycleError("This legacy booking has no room type. Migrate it before assigning a physical room.", "ROOM_TYPE_MISMATCH");
       if (booking.physicalRoomId) throw new BookingLifecycleError("A physical room is already assigned. Unassign it before changing rooms.", "INVALID_BOOKING_STATE");
 
+      // Touch the room document inside the transaction. Concurrent assignments to the
+      // same room serialize on this write, while non-overlapping future stays remain valid.
       const room = await PhysicalRoom.findOneAndUpdate(
         {
           _id: new mongoose.Types.ObjectId(input.physicalRoomId),
@@ -157,7 +150,7 @@ export async function assignPhysicalRoom(input: {
           roomTypeId: booking.roomTypeId,
           status: "ready",
         },
-        { $set: { status: "reserved" } },
+        { $inc: { assignmentVersion: 1 } },
         { new: true, session }
       );
       if (!room) {
@@ -173,7 +166,7 @@ export async function assignPhysicalRoom(input: {
           roomTypeId: booking.roomTypeId,
         }).session(session);
         if (!matchingType) throw new BookingLifecycleError("Physical room type does not match the booking.", "ROOM_TYPE_MISMATCH");
-        throw new BookingLifecycleError("Physical room is not ready or has already been assigned.", "ROOM_NOT_AVAILABLE");
+        throw new BookingLifecycleError("Physical room is not ready for assignment.", "ROOM_NOT_AVAILABLE");
       }
 
       const overlapping = await Booking.exists({
