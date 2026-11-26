@@ -17,6 +17,7 @@ export interface IMaintenanceWorkOrder {
   assignedTo?: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
   completedAt?: Date;
+  statusHistory: { status: MaintenanceStatus; changedBy: mongoose.Types.ObjectId; changedAt: Date; note?: string }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +34,7 @@ const MaintenanceWorkOrderSchema = new Schema<IMaintenanceWorkOrder>({
   assignedTo: { type: Schema.Types.ObjectId, ref: "User" },
   createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
   completedAt: { type: Date },
+  statusHistory: [{ status: { type: String, enum: MAINTENANCE_STATUSES, required: true }, changedBy: { type: Schema.Types.ObjectId, ref: "User", required: true }, changedAt: { type: Date, required: true }, note: { type: String, trim: true, maxlength: 500 } }],
 }, { timestamps: true, versionKey: false });
 
 MaintenanceWorkOrderSchema.index({ tenantId: 1, propertyId: 1, status: 1, priority: 1, dueAt: 1 });
