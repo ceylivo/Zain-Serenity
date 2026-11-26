@@ -20,7 +20,7 @@ export async function GET(_request: Request, context: Context) {
   const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "inventory:read" });
   if (!access.ok || !access.propertyId) return fail("FORBIDDEN", "Inventory access denied", 403);
   await dbConnect();
-  const items = await RoomType.find({ tenantId: access.tenantId, propertyId: access.propertyId, ...(access.role === "tenant_owner" ? {} : { _id: { $in: (await import("@/models/Membership")).default.findById(access.membershipId).then((m) => m?.propertyIds ?? []) } }) }).sort({ name: 1 }).lean();
+  const items = await RoomType.find({ tenantId: access.tenantId, propertyId: access.propertyId }).sort({ name: 1 }).lean();
   return NextResponse.json({ data: items });
 }
 
