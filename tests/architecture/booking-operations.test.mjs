@@ -39,3 +39,14 @@ test("booking and housekeeping workspaces use tenant/property scoped endpoints",
   assert.ok(housekeeping.includes("/physical-rooms"));
   assert.ok(housekeeping.includes("method: \"PATCH\""));
 });
+
+test("booking operations support room reassignment and unassignment through tenant scoped lifecycle", async () => {
+  const lifecycle = await read("../../src/lib/bookingLifecycle.ts");
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/bookings/[bookingId]/assign-room/route.ts");
+  const page = await read("../../src/app/workspace/bookings/page.tsx");
+  assert.ok(lifecycle.includes("export async function unassignPhysicalRoom"));
+  assert.ok(lifecycle.includes("previousPhysicalRoomId"));
+  assert.ok(route.includes('action !== "assign" && action !== "unassign"'));
+  assert.ok(page.includes('act(booking,"unassign")'));
+  assert.ok(page.includes("Reassign room"));
+});
