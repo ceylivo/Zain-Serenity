@@ -2,6 +2,7 @@ import "server-only";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/dbConnect";
 import Booking from "@/models/Booking";
+import Payment from "@/models/Payment";
 import InventoryDay from "@/models/InventoryDay";
 import PhysicalRoom from "@/models/PhysicalRoom";
 import AuditLog from "@/models/AuditLog";
@@ -60,8 +61,21 @@ export async function cancelTenantBooking(input: {
       if (booking.status !== "pending" && booking.status !== "confirmed") {
         throw new BookingLifecycleError("Only pending or confirmed bookings can be cancelled.", "INVALID_BOOKING_STATE");
       }
-      if (booking.paymentStatus && !["unpaid", "failed"].includes(booking.paymentStatus)) {
-        throw new BookingLifecycleError("A payment or refund action is required before this booking can be cancelled.", "PAYMENT_ACTION_REQUIRED");
+      const paymentRecords = await Payment.find({
+        tenantId: input.tenantId, propertyId: input.propertyId, bookingId: booking._id,
+      }).session(session);
+      if (
+        paymentRecords.some((payment) => payment.status === "succeeded" || payment.status === "refunded" || payment.status === "pending_verification") ||
+        (booking.paymentStatus && ["paid", "partially_paid", "partially_refunded", "refunded"].includes(booking.paymentStatus))
+      ) {
+        throw new BookingLifecycleError("A submitted, settled or refund-related payment requires staff review before cancellation.", "PAYMENT_ACTION_REQUIRED");
+      }
+      for (const payment of paymentRecords) {
+        if (payment.status === "pending" && payment.isActive) {
+          payment.status = "cancelled";
+          payment.isActive = false;
+          await payment.save({ session });
+        }
       }
 
       const updated = await Booking.findOneAndUpdate(
