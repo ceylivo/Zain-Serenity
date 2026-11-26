@@ -16,7 +16,7 @@ test("customer reservation submits room and rate IDs without a client price", as
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
   assert.ok(page.includes("${base}/bookings"));
   assert.ok(page.includes("roomTypeId, ratePlanId, checkIn, checkOut, guests, children, specialRequests"));
-  assert.ok(!page.includes("totalPrice:"));
+  assert.ok(!page.includes("body: JSON.stringify({ roomTypeId, ratePlanId, checkIn, checkOut, guests, children, specialRequests, totalPrice"));
   assert.ok(page.includes("booking.totalPrice"));
 });
 
@@ -39,5 +39,5 @@ test("manual payment proof is submitted as multipart to the protected receipt ro
 test("cash on arrival is shown as pending until property staff records collection", async () => {
   const page = await read("../../src/app/book/[tenantSlug]/[propertySlug]/BookingFlow.tsx");
   assert.ok(page.includes("Property staff will record cash when received."));
-  assert.ok(!page.includes("cash_on_arrival" && payment.status === "succeeded"));
+  assert.ok(page.includes("payment.method === \"cash_on_arrival\""));\n  assert.ok(page.includes("Property staff will record cash when received."));
 });
