@@ -48,7 +48,10 @@ export async function PATCH(request: Request, context: Context) {
     if (!member) return fail("INVALID_ASSIGNEE", "Assignee must be an active member assigned to this property", 422);
   }
   const before = { status: task.status, assignedTo: task.assignedTo?.toString() ?? null, dueAt: task.dueAt?.toISOString() ?? null };
-  if (status !== undefined) task.status = status as (typeof HOUSEKEEPING_TASK_STATUSES)[number];
+  if (status !== undefined && status !== task.status) {
+    task.status = status as (typeof HOUSEKEEPING_TASK_STATUSES)[number];
+    task.statusHistory.push({ status: task.status, changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date() });
+  }
   if (body.assignedTo !== undefined) task.assignedTo = assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined;
   if (body.dueAt !== undefined) task.dueAt = dueAt ?? undefined;
   task.completedAt = task.status === "completed" ? task.completedAt ?? new Date() : undefined;
