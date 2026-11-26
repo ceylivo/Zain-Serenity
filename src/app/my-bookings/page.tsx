@@ -63,8 +63,6 @@ export default function MyBookingsPage() {
   const [filter, setFilter] = useState("all");
 
   const loadBookings = useCallback(async (nextPage: number) => {
-    setRefreshing(true);
-    setError("");
     try {
       const response = await fetch(`/api/my-bookings?page=${nextPage}&limit=20`, { cache: "no-store" });
       const body = await response.json() as ApiResponse;
@@ -125,7 +123,7 @@ export default function MyBookingsPage() {
             <h1 className="mt-1 text-3xl font-bold text-slate-950 sm:text-4xl">My bookings</h1>
             <p className="mt-2 text-sm text-slate-600">Reservations across your properties, with separate booking and payment status.</p>
           </div>
-          <button onClick={() => void loadBookings(page)} disabled={refreshing} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">
+          <button onClick={() => { setRefreshing(true); void loadBookings(page).finally(() => setRefreshing(false)); }} disabled={refreshing} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> Refresh
           </button>
         </header>
@@ -181,7 +179,7 @@ export default function MyBookingsPage() {
             })}
           </div>
         )}
-        {pages > 1 && <nav aria-label="Booking pages" className="flex items-center justify-center gap-3 pt-2"><button disabled={page <= 1 || refreshing} onClick={() => void loadBookings(page - 1)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm disabled:opacity-40">Previous</button><span className="text-sm text-slate-600">Page {page} of {pages}</span><button disabled={page >= pages || refreshing} onClick={() => void loadBookings(page + 1)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm disabled:opacity-40">Next</button></nav>}
+        {pages > 1 && <nav aria-label="Booking pages" className="flex items-center justify-center gap-3 pt-2"><button disabled={page <= 1 || refreshing} onClick={() => { setRefreshing(true); void loadBookings(page - 1).finally(() => setRefreshing(false)); }} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm disabled:opacity-40">Previous</button><span className="text-sm text-slate-600">Page {page} of {pages}</span><button disabled={page >= pages || refreshing} onClick={() => { setRefreshing(true); void loadBookings(page + 1).finally(() => setRefreshing(false)); }} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm disabled:opacity-40">Next</button></nav>}
       </div>
     </main>
   );
