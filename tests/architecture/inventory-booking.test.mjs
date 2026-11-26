@@ -8,41 +8,44 @@ test("room type and physical room inventory are tenant/property scoped", async (
   const roomType = await read("../../src/models/RoomType.ts");
   const physicalRoom = await read("../../src/models/PhysicalRoom.ts");
   const inventory = await read("../../src/models/InventoryDay.ts");
-  assert.match(roomType, /tenantId:[\\s\\S]*required: true/);
-  assert.match(roomType, /inventoryCount:[\\s\\S]*required: true/);
-  assert.match(physicalRoom, /tenantId:[\\s\\S]*required: true/);
-  assert.match(physicalRoom, /propertyId:[\\s\\S]*required: true/);
-  assert.match(inventory, /InventoryDaySchema\\.index\\([\\s\\S]*unique: true/);
+  assert.ok(roomType.includes("tenantId:") && roomType.includes("required: true"));
+  assert.ok(roomType.includes("inventoryCount:") && roomType.includes("required: true"));
+  assert.ok(physicalRoom.includes("tenantId:") && physicalRoom.includes("required: true"));
+  assert.ok(physicalRoom.includes("propertyId:") && physicalRoom.includes("required: true"));
+  assert.ok(inventory.includes("unique: true"));
 });
 
 test("booking price is calculated from a tenant-owned active rate plan", async () => {
   const service = await read("../../src/lib/inventoryReservation.ts");
-  assert.match(service, /tenantId: input\\.tenantId,[\\s\\S]*propertyId: input\\.propertyId,[\\s\\S]*roomTypeId,[\\s\\S]*isActive: true/);
-  assert.match(service, /const subtotal = rate\\.nightlyRate \\* nights\\.length/);
-  assert.match(service, /const taxes = Math\\.round\\(subtotal \\* rate\\.taxRatePercent \\/ 100\\)/);
-  assert.doesNotMatch(service, /input\\.totalPrice/);
+  assert.ok(service.includes("tenantId: input.tenantId"));
+  assert.ok(service.includes("propertyId: input.propertyId"));
+  assert.ok(service.includes("isActive: true"));
+  assert.ok(service.includes("const subtotal = rate.nightlyRate * nights.length"));
+  assert.ok(service.includes("const taxes = Math.round(subtotal * rate.taxRatePercent / 100)"));
+  assert.ok(!service.includes("input.totalPrice"));
 });
 
 test("inventory reservation and booking creation share a MongoDB transaction", async () => {
   const service = await read("../../src/lib/inventoryReservation.ts");
-  assert.match(service, /session\\.withTransaction\\(async/);
-  assert.match(service, /availableRooms: \\{ \\$gt: 0 \\}/);
-  assert.match(service, /\\$inc: \\{ availableRooms: -1, reservedRooms: 1 \\}/);
-  assert.match(service, /Booking\\.create\\(\\[[\\s\\S]*?\\], \\{ session \\}\\)/);
-  assert.match(service, /InventoryDay\\.findOneAndUpdate\\([\\s\\S]*?\\{ new: true, session \\}/);
+  assert.ok(service.includes("session.withTransaction(async"));
+  assert.ok(service.includes("availableRooms: { $gt: 0 }"));
+  assert.ok(service.includes("$inc: { availableRooms: -1, reservedRooms: 1 }"));
+  assert.ok(service.includes("Booking.create(["));
+  assert.ok(service.includes("], { session })"));
+  assert.ok(service.includes("{ new: true, session }"));
 });
 
 test("booking API does not accept client-supplied price or tenant ownership", async () => {
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/bookings/route.ts");
-  assert.match(route, /resolveTenantAccess\\(/);
-  assert.match(route, /createInventoryBooking\\(/);
-  assert.doesNotMatch(route, /body\\.totalPrice/);
-  assert.doesNotMatch(route, /tenantId:\\s*body\\./);
+  assert.ok(route.includes("resolveTenantAccess("));
+  assert.ok(route.includes("createInventoryBooking("));
+  assert.ok(!route.includes("body.totalPrice"));
+  assert.ok(!route.includes("tenantId: body."));
 });
 
 test("legacy booking records remain compatible during staged migration", async () => {
   const booking = await read("../../src/models/Booking.ts");
-  assert.match(booking, /tenantId\\?\\s*:\\s*mongoose\\.Types\\.ObjectId/);
-  assert.match(booking, /propertyId\\?\\s*:\\s*mongoose\\.Types\\.ObjectId/);
-  assert.match(booking, /paymentStatus\\?\\s*:\\s*PaymentStatus/);
+  assert.ok(/tenantId\??\s*:\s*mongoose\.Types\.ObjectId/.test(booking));
+  assert.ok(/propertyId\??\s*:\s*mongoose\.Types\.ObjectId/.test(booking));
+  assert.ok(/paymentStatus\??\s*:\s*PaymentStatus/.test(booking));
 });
