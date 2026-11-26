@@ -139,9 +139,10 @@ export default function InventoryWorkspacePage() {
   useEffect(() => {
     if (!tenantSlug || !propertySlug) return;
     let active = true;
-    void loadInventoryBlocks(tenantSlug, propertySlug).catch((cause) => {
-      if (active) setError(cause instanceof Error ? cause.message : "Unable to load inventory block history.");
-    });
+    void (async () => {
+      try { await loadInventoryBlocks(tenantSlug, propertySlug); }
+      catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Unable to load inventory block history."); }
+    })();
     return () => { active = false; };
   }, [tenantSlug, propertySlug, loadInventoryBlocks]);
 
