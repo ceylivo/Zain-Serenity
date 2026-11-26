@@ -18,6 +18,8 @@ import {
   Home,
   CreditCard,
   Settings,
+  ClipboardList,
+  Brush,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +27,8 @@ const navItems = [
   { href: "/admin/rooms", label: "Rooms", icon: DoorOpen },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/workspace/inventory", label: "Room Inventory", icon: DoorOpen },
+  { href: "/workspace/bookings", label: "Booking Operations", icon: ClipboardList },
+  { href: "/workspace/housekeeping", label: "Housekeeping", icon: Brush },
   { href: "/workspace/payments", label: "SaaS Payments", icon: CreditCard },
   { href: "/workspace/payment-settings", label: "Payment Settings", icon: Settings },
   { href: "/admin/gallery", label: "Gallery", icon: ImageIcon },
