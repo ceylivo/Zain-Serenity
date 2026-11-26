@@ -33,7 +33,7 @@ export async function GET(request: Request, context: Context) {
   await dbConnect();
 
   const scope = { tenantId: access.tenantId, propertyId: access.propertyId };
-  const activeBooking = { ...scope, status: { $in: ["pending", "confirmed", "checked_in"] } };
+  const activeBooking = { ...scope, status: { $in: ["pending", "confirmed"] } };
   const [
     totalRooms, roomReady, roomOccupied, roomCleaning, roomMaintenance, roomOutOfService,
     arrivals, departures, inHouse, newBookings, pendingPayments,
