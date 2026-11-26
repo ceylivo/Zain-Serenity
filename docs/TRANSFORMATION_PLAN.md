@@ -257,3 +257,15 @@ The feature branch now includes:
 - All booking and housekeeping transitions create audit events and fail closed if MongoDB transactions are unavailable.
 
 This is an initial operational workflow. Outstanding work includes paginated/searchable queues, arrival/departure date filtering, guest identity/contact display with privacy controls, room unassignment/reassignment, no-show handling, maintenance work orders, housekeeping task assignment, and full end-to-end browser testing. The existing customer booking and payment flows remain independent; check-in is not treated as proof of payment collection.
+
+## Inventory calendar and room assignment operations
+
+The operations workspace now includes a 14-day availability calendar for each active room type. The tenant/property-scoped availability endpoint:
+- Requires `inventory:read` permission and validates date-only inputs.
+- Limits each request to 31 days.
+- Combines daily inventory counters with overlapping active bookings, so older bookings that predate inventory-day counters are not silently omitted.
+- Reports total, available, reserved and blocked room counts per day.
+
+Booking operations now allow staff to assign, reassign or unassign a physical room before check-in. Each change is transactional, tenant/property scoped and audited. Reassignment rejects rooms with overlapping active stays; unassignment is blocked after check-in. Room assignments do not change the room's housekeeping state until check-in.
+
+Known follow-up: manual inventory blocking/unblocking, property-local timezone configuration, date-range filters and a full interactive end-to-end test suite are still outstanding.
