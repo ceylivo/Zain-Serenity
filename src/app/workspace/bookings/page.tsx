@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, CheckCircle2, ClipboardList, DoorOpen, Loader2, LogIn, LogOut, RefreshCw } from "lucide-react";
+import { CalendarDays, ClipboardList, Loader2, LogIn, LogOut, RefreshCw } from "lucide-react";
 
 type Membership = { id: string; role: string; tenant: { name: string; slug: string } };
 type Property = { _id: string; name: string; slug: string; currency: string };
