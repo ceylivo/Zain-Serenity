@@ -17,6 +17,7 @@ import {
   Anchor,
   Home,
   CreditCard,
+  Settings,
 } from "lucide-react";
 
 const navItems = [
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/admin/rooms", label: "Rooms", icon: DoorOpen },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/workspace/payments", label: "SaaS Payments", icon: CreditCard },
+  { href: "/workspace/payment-settings", label: "Payment Settings", icon: Settings },
   { href: "/admin/gallery", label: "Gallery", icon: ImageIcon },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/rooms/new", label: "Add Room", icon: PlusCircle },
