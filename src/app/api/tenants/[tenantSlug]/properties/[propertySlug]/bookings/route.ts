@@ -36,10 +36,11 @@ export async function POST(request: Request, context: RouteContext) {
     permission: "booking:create",
   });
 
-  if (!access.ok || !access.propertyId) {
+  if (!access.ok) {
     const status = access.reason === "tenant_not_found" || access.reason === "property_not_found" ? 404 : 403;
-    return errorResponse(access.ok ? "PROPERTY_CONTEXT_REQUIRED" : access.reason.toUpperCase(), "You do not have access to create bookings for this property.", status);
+    return errorResponse(access.reason.toUpperCase(), "You do not have access to create bookings for this property.", status);
   }
+  if (!access.propertyId) return errorResponse("PROPERTY_CONTEXT_REQUIRED", "A property context is required.", 400);
 
   let body: unknown;
   try {
@@ -109,10 +110,11 @@ export async function GET(request: Request, context: RouteContext) {
     permission: "booking:read",
   });
 
-  if (!access.ok || !access.propertyId) {
+  if (!access.ok) {
     const status = access.reason === "tenant_not_found" || access.reason === "property_not_found" ? 404 : 403;
-    return errorResponse(access.ok ? "PROPERTY_CONTEXT_REQUIRED" : access.reason.toUpperCase(), "You do not have access to bookings for this property.", status);
+    return errorResponse(access.reason.toUpperCase(), "You do not have access to bookings for this property.", status);
   }
+  if (!access.propertyId) return errorResponse("PROPERTY_CONTEXT_REQUIRED", "A property context is required.", 400);
 
   const url = new URL(request.url);
   const page = Math.max(1, Math.min(10000, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1));
