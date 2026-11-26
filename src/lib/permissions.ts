@@ -33,6 +33,7 @@ const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "property:update",
     "inventory:read",
     "inventory:manage",
+    "inventory:housekeeping",
     "booking:read",
     "booking:create",
     "booking:update",
