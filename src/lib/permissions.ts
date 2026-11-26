@@ -10,6 +10,7 @@ export const PERMISSIONS = [
   "property:archive",
   "inventory:read",
   "inventory:manage",
+  "inventory:housekeeping",
   "booking:read",
   "booking:create",
   "booking:update",
@@ -61,7 +62,7 @@ const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "booking:create",
     "booking:update",
   ],
-  housekeeping: ["property:read", "inventory:read"],
+  housekeeping: ["property:read", "inventory:read", "inventory:housekeeping"],
   analyst: ["tenant:read", "property:read", "report:read"],
 };
 
