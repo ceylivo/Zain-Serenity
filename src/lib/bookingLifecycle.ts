@@ -162,6 +162,7 @@ export async function assignPhysicalRoom(input: {
         result = booking.toObject() as unknown as Record<string, unknown>;
         return;
       }
+      const previousPhysicalRoomId = booking.physicalRoomId?.toString() ?? null;
 
       // Touch the room document inside the transaction. Concurrent assignments to the
       // same room serialize on this write, while non-overlapping future stays remain valid.
@@ -210,7 +211,7 @@ export async function assignPhysicalRoom(input: {
         actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
         action: "booking.physical_room.assigned", resourceType: "booking",
         resourceId: booking._id.toString(), outcome: "success",
-        metadata: { previousPhysicalRoomId: booking.physicalRoomId?.toString() ?? null, physicalRoomId: room._id.toString(), roomNumber: room.roomNumber },
+        metadata: { previousPhysicalRoomId, physicalRoomId: room._id.toString(), roomNumber: room.roomNumber },
       }], { session });
       result = booking.toObject() as unknown as Record<string, unknown>;
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
