@@ -82,18 +82,18 @@ export async function POST(request: Request, context: Context) {
   try {
     await sessionDb.withTransaction(async () => {
       const [task] = await HousekeepingTask.create([{
-        tenantId: access.tenantId, propertyId: access.propertyId, physicalRoomId: room._id,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId, physicalRoomId: room._id,
         title, description: description ?? "", assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
         dueAt, createdBy: new mongoose.Types.ObjectId(session.user.id),
         statusHistory: [{ status: "open", changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date() }],
       }], { session: sessionDb });
       await synchronizePhysicalRoomOperationalStatus({
-        tenantId: access.tenantId, propertyId: access.propertyId,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
         physicalRoomId: room._id, actorUserId: new mongoose.Types.ObjectId(session.user.id),
         session: sessionDb, source: "housekeeping_task",
       });
       await AuditLog.create([{
-        tenantId: access.tenantId, propertyId: access.propertyId,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
         actorUserId: new mongoose.Types.ObjectId(session.user.id),
         action: "housekeeping.task.created", resourceType: "housekeeping_task",
         resourceId: task._id.toString(), outcome: "success",
