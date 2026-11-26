@@ -6,8 +6,9 @@ import Footer from "./Footer";
 export default function PublicLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdminRoute = pathname.startsWith("/admin");
+  const isWorkspaceRoute = pathname.startsWith("/workspace");
   const isHomePage = pathname === "/"; // ✅ added missing definition
-  if (isAdminRoute) {
+  if (isAdminRoute || isWorkspaceRoute) {
     return <>{children}</>;
   }
 
