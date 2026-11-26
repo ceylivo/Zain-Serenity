@@ -10,6 +10,7 @@ type Property = { _id: string; name: string; slug: string; currency: string };
 type RoomType = { _id: string; name: string; slug: string; currency: string; baseNightlyRate: number; inventoryCount: number; maxAdults: number; maxChildren: number; status: string };
 type RatePlan = { _id: string; roomTypeId: string; name: string; code: string; currency: string; nightlyRate: number; taxRatePercent: number; minimumNights: number; isActive: boolean };
 type PhysicalRoom = { _id: string; roomTypeId: string; roomNumber: string; floor?: string; status: string };
+type InventoryBlock = { id: string; roomTypeId: string; startDate: string; endDate: string; quantity: number; remainingQuantity: number; releasedQuantity: number; status: "active" | "partially_released" | "released"; reason: string; createdAt: string; createdBy: string; lastReleasedAt: string | null };
 type Availability = { startDate: string; endDate: string; dates: string[]; roomTypes: { roomTypeId: string; name: string; currency: string; inventory: { date: string; totalRooms: number; availableRooms: number; reservedRooms: number; blockedRooms: number }[] }[] };
 type ApiBody<T> = { data?: T; error?: { message?: string } };
 function localDateKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
@@ -28,6 +29,9 @@ export default function InventoryWorkspacePage() {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);
   const [physicalRooms, setPhysicalRooms] = useState<PhysicalRoom[]>([]);
+  const [inventoryBlocks, setInventoryBlocks] = useState<InventoryBlock[]>([]);
+  const [releaseQuantities, setReleaseQuantities] = useState<Record<string, string>>({});
+  const [releaseReasons, setReleaseReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -122,6 +126,51 @@ export default function InventoryWorkspacePage() {
     })();
     return () => { active = false; };
   }, [tenantSlug, propertySlug, loadInventory]);
+
+  const loadInventoryBlocks = useCallback(async (tenant: string, property: string) => {
+    if (!tenant || !property) return;
+    const base = `/api/tenants/${encodeURIComponent(tenant)}/properties/${encodeURIComponent(property)}`;
+    const response = await fetch(`${base}/inventory/blocks`, { cache: "no-store" });
+    const body = await response.json() as ApiBody<InventoryBlock[]>;
+    if (!response.ok) throw new Error(body.error?.message || "Unable to load inventory block history.");
+    setInventoryBlocks(Array.isArray(body.data) ? body.data : []);
+  }, []);
+
+  useEffect(() => {
+    if (!tenantSlug || !propertySlug) { setInventoryBlocks([]); return; }
+    let active = true;
+    void loadInventoryBlocks(tenantSlug, propertySlug).catch((cause) => {
+      if (active) setError(cause instanceof Error ? cause.message : "Unable to load inventory block history.");
+    });
+    return () => { active = false; };
+  }, [tenantSlug, propertySlug, loadInventoryBlocks]);
+
+  const releaseInventoryBlock = async (block: InventoryBlock) => {
+    const quantity = Number(releaseQuantities[block.id] ?? "1");
+    const reason = (releaseReasons[block.id] ?? "").trim();
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > block.remainingQuantity || reason.length < 3) {
+      setError("Enter a valid release quantity and a reason of at least 3 characters.");
+      return;
+    }
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const base = `/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}`;
+      const response = await fetch(`${base}/inventory/blocks`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockId: block.id, quantity, reason }),
+      });
+      const result = await response.json() as ApiBody<unknown>;
+      if (!response.ok) throw new Error(result.error?.message || "Unable to release this inventory block.");
+      await Promise.all([loadInventoryBlocks(tenantSlug, propertySlug), loadInventory(tenantSlug, propertySlug)]);
+      setReleaseReasons((current) => ({ ...current, [block.id]: "" }));
+      setNotice(`Released ${quantity} room(s) from the selected inventory block.`);
+      const endDate = shiftDateKey(calendarStart, 13);
+      const availabilityResponse = await fetch(`${base}/inventory/availability?startDate=${calendarStart}&endDate=${endDate}`, { cache: "no-store" });
+      const availabilityBody = await availabilityResponse.json() as ApiBody<Availability>;
+      if (availabilityResponse.ok) setAvailability(availabilityBody.data ?? null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to release this inventory block."); }
+    finally { setSaving(false); }
+  };
 
   useEffect(() => {
     if (!tenantSlug || !propertySlug) return;
@@ -251,6 +300,26 @@ export default function InventoryWorkspacePage() {
             <label className="text-sm lg:col-span-5">Reason<input required minLength={3} maxLength={300} className={input} value={blockReason} onChange={(event) => setBlockReason(event.target.value)} placeholder="Maintenance, owner use, renovation…"/></label>
             <div className="flex items-end"><button disabled={saving || !selectedRoomType || !roomTypes.length} className="w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Saving…" : blockAction === "block" ? "Block inventory" : "Release inventory"}</button></div>
           </form>}
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+            <div><h2 className="text-lg font-semibold text-slate-950">Inventory block history</h2><p className="text-sm text-slate-500">Review each block and release quantities against its original record. Older quantity-only blocks remain visible in availability counters but are not listed here.</p></div>
+            {inventoryBlocks.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No individually tracked inventory blocks for this property yet.</p> : <div className="space-y-3">
+              {inventoryBlocks.map((block) => {
+                const room = roomTypes.find((item) => item._id === block.roomTypeId);
+                return <article key={block.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div><p className="font-semibold text-slate-900">{room?.name ?? "Room type"} · {block.startDate} to {block.endDate}</p><p className="mt-1 text-xs text-slate-500">Reason: {block.reason}</p><p className="mt-1 text-xs text-slate-500">Created {new Date(block.createdAt).toLocaleString()}</p></div>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${block.status === "released" ? "bg-slate-100 text-slate-700" : block.status === "partially_released" ? "bg-amber-100 text-amber-800" : "bg-rose-100 text-rose-800"}`}>{block.status.replaceAll("_", " ")}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm"><div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Original</p><p className="font-semibold">{block.quantity}</p></div><div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Remaining</p><p className="font-semibold">{block.remainingQuantity}</p></div><div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Released</p><p className="font-semibold">{block.releasedQuantity}</p></div></div>
+                  {canManage && block.remainingQuantity > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-[120px_1fr_auto]">
+                    <label className="text-xs text-slate-600">Release quantity<input aria-label={`Release quantity for ${room?.name ?? "room type"} block`} className={input} type="number" min="1" max={block.remainingQuantity} value={releaseQuantities[block.id] ?? "1"} onChange={(event) => setReleaseQuantities((current) => ({ ...current, [block.id]: event.target.value }))}/></label>
+                    <label className="text-xs text-slate-600">Release reason<input aria-label="Reason for releasing inventory" className={input} minLength={3} maxLength={300} value={releaseReasons[block.id] ?? ""} onChange={(event) => setReleaseReasons((current) => ({ ...current, [block.id]: event.target.value }))} placeholder="Reason for releasing rooms"/></label>
+                    <button type="button" disabled={saving || !(releaseReasons[block.id] ?? "").trim() || (releaseReasons[block.id] ?? "").trim().length < 3} onClick={() => void releaseInventoryBlock(block)} className="self-end rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Release</button>
+                  </div>}
+                </article>;
+              })}
+            </div>}
+          </section>
           <section className="grid gap-5 lg:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="mb-3 font-semibold">Room types</h2>{roomTypes.length ? roomTypes.map((room) => <div key={room._id} className="border-t border-slate-100 py-3"><p className="font-medium">{room.name}</p><p className="text-xs text-slate-500">{room.inventoryCount} inventory · {room.maxAdults} adults · {room.currency} {room.baseNightlyRate}/night</p></div>) : <p className="text-sm text-slate-500">No active room types yet.</p>}</div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="mb-3 font-semibold">Rate plans</h2>{ratePlans.length ? ratePlans.map((rate) => <div key={rate._id} className="border-t border-slate-100 py-3"><p className="font-medium">{rate.name} <span className="text-xs text-slate-500">({rate.code})</span></p><p className="text-xs text-slate-500">{rate.currency} {rate.nightlyRate}/night · {rate.taxRatePercent}% tax</p></div>) : <p className="text-sm text-slate-500">No active rate plans yet.</p>}</div>
