@@ -9,6 +9,7 @@ import PhysicalRoom from "@/models/PhysicalRoom";
 import Membership from "@/models/Membership";
 import HousekeepingTask from "@/models/HousekeepingTask";
 import AuditLog from "@/models/AuditLog";
+import { synchronizePhysicalRoomOperationalStatus } from "@/lib/roomOperationalSync";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
@@ -75,18 +76,35 @@ export async function POST(request: Request, context: Context) {
   if (assignedTo && !(await validAssignee(assignedTo, access.tenantId, access.propertyId))) {
     return fail("INVALID_ASSIGNEE", "Assignee must be an active owner, property manager or housekeeping member assigned to this property", 422);
   }
-  const task = await HousekeepingTask.create({
-    tenantId: access.tenantId, propertyId: access.propertyId, physicalRoomId: room._id,
-    title, description: description ?? "", assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
-    dueAt, createdBy: new mongoose.Types.ObjectId(session.user.id),
-    statusHistory: [{ status: "open", changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date() }],
-  });
-  await AuditLog.create({
-    tenantId: access.tenantId, propertyId: access.propertyId,
-    actorUserId: new mongoose.Types.ObjectId(session.user.id),
-    action: "housekeeping.task.created", resourceType: "housekeeping_task",
-    resourceId: task._id.toString(), outcome: "success",
-    metadata: { physicalRoomId, assignedTo: assignedTo ?? null, dueAt: dueAt?.toISOString() ?? null },
-  });
-  return NextResponse.json({ data: task }, { status: 201 });
+  const sessionDb = await mongoose.startSession();
+  let createdTask: Record<string, unknown> | null = null;
+  try {
+    await sessionDb.withTransaction(async () => {
+      const [task] = await HousekeepingTask.create([{
+        tenantId: access.tenantId, propertyId: access.propertyId, physicalRoomId: room._id,
+        title, description: description ?? "", assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
+        dueAt, createdBy: new mongoose.Types.ObjectId(session.user.id),
+        statusHistory: [{ status: "open", changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date() }],
+      }], { session: sessionDb });
+      await synchronizePhysicalRoomOperationalStatus({
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        physicalRoomId: room._id, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        session: sessionDb, source: "housekeeping_task",
+      });
+      await AuditLog.create([{
+        tenantId: access.tenantId, propertyId: access.propertyId,
+        actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        action: "housekeeping.task.created", resourceType: "housekeeping_task",
+        resourceId: task._id.toString(), outcome: "success",
+        metadata: { physicalRoomId, assignedTo: assignedTo ?? null, dueAt: dueAt?.toISOString() ?? null },
+      }], { session: sessionDb });
+      createdTask = task.toObject() as unknown as Record<string, unknown>;
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+  } catch (error) {
+    console.error("Housekeeping task creation failed", error);
+    return fail("TASK_CREATE_FAILED", "Unable to create the task and update room state atomically. Refresh and retry.", 503);
+  } finally {
+    await sessionDb.endSession();
+  }
+  return NextResponse.json({ data: createdTask }, { status: 201 });
 }
