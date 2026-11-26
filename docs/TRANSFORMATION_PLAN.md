@@ -190,3 +190,18 @@ The latest verified successful CI run before the payment workspace UI commit was
 6. Add refund/ledger workflows, integration/E2E coverage, English/Urdu catalogues and complete RTL support.
 
 A successful CI workflow does not establish production readiness. Transaction-capable MongoDB deployment, index rollout, secrets configuration, rate limiting, migration, backups and tenant-isolation review remain release gates.
+
+
+## Customer booking journey — initial SaaS integration
+
+A tenant/property-scoped booking entry point is now available at `/book/{tenantSlug}/{propertySlug}`.
+
+- Loads active room types, active rate plans and public payment instructions through the tenant/property APIs.
+- Creates bookings using room type and rate plan identifiers only; client-submitted totals are never sent.
+- Displays the server-calculated booking amount returned by the reservation API.
+- Starts manual payment attempts with an idempotency key.
+- Supports bank transfer, Easypaisa, JazzCash and cash-on-arrival when enabled for the property.
+- Uploads receipt images through the private, authenticated receipt endpoint.
+- Cash remains pending until staff explicitly records collection.
+
+This is an additional SaaS route; the legacy `/booking` and `/api/bookings` flow is intentionally preserved while property-specific links and legacy migration are completed. The new route requires an authenticated customer account. Customer self-service booking history, cancellation UI, accessibility/localization polish and full E2E coverage remain follow-up work.
