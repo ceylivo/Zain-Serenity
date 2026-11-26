@@ -41,6 +41,8 @@ export default function HousekeepingWorkspacePage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [taskStatusFilter, setTaskStatusFilter] = useState("all");
+  const [taskSearch, setTaskSearch] = useState("");
   const membership = useMemo(() => memberships.find((item) => item.tenant.slug === tenantSlug), [memberships, tenantSlug]);
   const canUpdate = roles.includes(membership?.role ?? "");
 
@@ -175,6 +177,15 @@ export default function HousekeepingWorkspacePage() {
     finally { setBusy(""); }
   };
 
+  const visibleTasks = useMemo(() => tasks.filter((task) => {
+    const matchesStatus = taskStatusFilter === "all" || task.status === taskStatusFilter;
+    const room = rooms.find((item) => item._id === task.physicalRoomId);
+    const assignee = assignees.find((member) => member.id === task.assignedTo)?.name ?? "";
+    const haystack = [task.title, task.description, room?.roomNumber ?? "", assignee].join(" ").toLowerCase();
+    return matchesStatus && haystack.includes(taskSearch.trim().toLowerCase());
+  }), [tasks, rooms, assignees, taskStatusFilter, taskSearch]);
+  const overdueTasks = tasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < Date.now() && !["completed", "cancelled"].includes(task.status)).length;
+  const activeTasks = tasks.filter((task) => ["open", "in_progress"].includes(task.status)).length;
   const counts = useMemo(() => rooms.reduce<Record<string, number>>((all, room) => { all[room.status] = (all[room.status] ?? 0) + 1; return all; }, {}), [rooms]);
   if (status === "loading" || loading && memberships.length === 0) return <main className="p-12 text-slate-600"><Loader2 className="mr-2 inline animate-spin"/>Loading housekeeping…</main>;
 
@@ -199,7 +210,16 @@ export default function HousekeepingWorkspacePage() {
           <label className="text-sm">Description<input maxLength={2000} className={input} value={taskDescription} onChange={(event) => setTaskDescription(event.target.value)} placeholder="Task instructions"/></label>
           <div className="sm:col-span-2 lg:col-span-5"><button disabled={busy === "task" || !rooms.length || !taskRoomId} className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy === "task" ? "Creating…" : "Create housekeeping task"}</button></div>
         </form>
-        {tasks.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No housekeeping tasks have been created for this property.</p> : <div className="space-y-3">{tasks.map((task) => {
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-3"><p className="text-2xl font-bold text-slate-950">{tasks.length}</p><p className="text-xs text-slate-500">Total tasks</p></div>
+          <div className="rounded-xl bg-slate-50 p-3"><p className="text-2xl font-bold text-slate-950">{activeTasks}</p><p className="text-xs text-slate-500">Active tasks</p></div>
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3"><p className="text-2xl font-bold text-rose-800">{overdueTasks}</p><p className="text-xs text-rose-700">Overdue · needs attention</p></div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">Search<input className={input} value={taskSearch} onChange={(event) => setTaskSearch(event.target.value)} placeholder="Task, room or assignee"/></label>
+          <label className="text-sm">Status<select className={input} value={taskStatusFilter} onChange={(event) => setTaskStatusFilter(event.target.value)}><option value="all">All statuses</option>{["open","in_progress","completed","cancelled"].map((value) => <option key={value} value={value}>{pretty(value)}</option>)}</select></label>
+        </div>
+        {tasks.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No housekeeping tasks have been created for this property.</p> : visibleTasks.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No tasks match these filters.</p> : <div className="space-y-3">{visibleTasks.map((task) => {
           const room = rooms.find((item) => item._id === task.physicalRoomId);
           return <article key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4">
             <div className="min-w-0"><p className="font-semibold text-slate-900">{task.title} · Room {room?.roomNumber ?? "—"}</p>{task.description && <p className="mt-1 text-sm text-slate-600">{task.description}</p>}<p className="mt-1 text-xs text-slate-500">Assignee: {assignees.find((member) => member.id === task.assignedTo)?.name ?? "Unassigned"} · Due: {task.dueAt ? new Date(task.dueAt).toLocaleString() : "No deadline"}</p><p className="mt-1 text-xs text-slate-500">History: {task.statusHistory.map((entry) => `${entry.status.replaceAll("_", " ")} · ${new Date(entry.changedAt).toLocaleString()}`).join(" → ")}</p></div>
