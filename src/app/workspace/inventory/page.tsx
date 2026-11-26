@@ -104,7 +104,6 @@ export default function InventoryWorkspacePage() {
     if (!tenantSlug || !propertySlug) return;
     let active = true;
     void (async () => {
-      setLoading(true);
       setError("");
       try { await loadInventory(tenantSlug, propertySlug); }
       catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Unable to load inventory."); }
@@ -138,8 +137,8 @@ export default function InventoryWorkspacePage() {
         {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
         {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
         <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-slate-700">Tenant<select className={input} value={tenantSlug} onChange={(event) => { setProperties([]); setPropertySlug(""); setTenantSlug(event.target.value); }}><option value="">Choose tenant</option>{memberships.map((item) => <option key={item.id} value={item.tenant.slug}>{item.tenant.name}</option>)}</select></label>
-          <label className="text-sm font-medium text-slate-700">Property<select className={input} value={propertySlug} onChange={(event) => setPropertySlug(event.target.value)}><option value="">Choose property</option>{properties.map((item) => <option key={item._id} value={item.slug}>{item.name} · {item.currency}</option>)}</select></label>
+          <label className="text-sm font-medium text-slate-700">Tenant<select className={input} value={tenantSlug} onChange={(event) => { setLoading(true); setProperties([]); setPropertySlug(""); setTenantSlug(event.target.value); }}><option value="">Choose tenant</option>{memberships.map((item) => <option key={item.id} value={item.tenant.slug}>{item.tenant.name}</option>)}</select></label>
+          <label className="text-sm font-medium text-slate-700">Property<select className={input} value={propertySlug} onChange={(event) => { setLoading(true); setPropertySlug(event.target.value); }}><option value="">Choose property</option>{properties.map((item) => <option key={item._id} value={item.slug}>{item.name} · {item.currency}</option>)}</select></label>
         </section>
         {!tenantSlug || !propertySlug ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600"><Building2 className="mx-auto mb-3" size={30}/>Select a tenant and property to view its inventory.</div> : <>
           <div className="grid gap-3 sm:grid-cols-3">
