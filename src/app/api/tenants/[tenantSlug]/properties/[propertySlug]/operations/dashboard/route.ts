@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import mongoose, { type FilterQuery } from "mongoose";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveTenantAccess } from "@/lib/tenantAccess";
 import { isValidDateOnly } from "@/lib/inputValidation";
 import dbConnect from "@/lib/dbConnect";
-import Booking from "@/models/Booking";
+import Booking, { type IBooking } from "@/models/Booking";
 import PhysicalRoom from "@/models/PhysicalRoom";
 import HousekeepingTask from "@/models/HousekeepingTask";
 import MaintenanceWorkOrder from "@/models/MaintenanceWorkOrder";
@@ -32,8 +32,8 @@ export async function GET(request: Request, context: Context) {
   const sevenDays = new Date(start.getTime() + 7 * 86400000);
   await dbConnect();
 
-  const scope = { tenantId: access.tenantId, propertyId: access.propertyId };
-  const activeBooking = { ...scope, status: { $in: ["pending", "confirmed"] } };
+  const scope: FilterQuery<IBooking> = { tenantId: access.tenantId, propertyId: access.propertyId };
+  const activeBooking: FilterQuery<IBooking> = { ...scope, status: { $in: ["pending", "confirmed"] } };
   const [
     totalRooms, roomReady, roomOccupied, roomCleaning, roomMaintenance, roomOutOfService,
     arrivals, departures, inHouse, newBookings, pendingPayments,
