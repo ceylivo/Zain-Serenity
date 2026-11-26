@@ -74,7 +74,7 @@ export async function POST(request: Request, context: Context) {
   const order = await MaintenanceWorkOrder.create({
     tenantId: access.tenantId, propertyId: access.propertyId,
     physicalRoomId: physicalRoomId ? new mongoose.Types.ObjectId(physicalRoomId) : undefined,
-    title, description: description ?? "", priority, dueAt,
+    title, description: description ?? "", priority: priority as (typeof MAINTENANCE_PRIORITIES)[number], dueAt,
     assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
     createdBy: new mongoose.Types.ObjectId(session.user.id),
     statusHistory: [{ status: "open", changedBy: new mongoose.Types.ObjectId(session.user.id), changedAt: new Date(), note: "Work order created" }],
