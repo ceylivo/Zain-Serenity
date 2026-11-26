@@ -62,7 +62,7 @@ export default function MyBookingsPage() {
   const [pages, setPages] = useState(1);
   const [filter, setFilter] = useState("all");
 
-  const loadBookings = useCallback(async (nextPage = page) => {
+  const loadBookings = useCallback(async (nextPage: number) => {
     setRefreshing(true);
     setError("");
     try {
@@ -78,7 +78,7 @@ export default function MyBookingsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page]);
+  }, []);
 
   useEffect(() => {
     if (authStatus === "unauthenticated") {
