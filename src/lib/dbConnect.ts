@@ -1,30 +1,43 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
+const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  throw new Error("Please define the MONGODB_URI environment variable");
+type MongooseCache = {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var mongooseCache: MongooseCache | undefined;
 }
 
-// Global cache to prevent multiple connections in development
-let cached = (global as any).mongoose;
+const cached =
+  global.mongooseCache ??
+  (global.mongooseCache = { conn: null, promise: null });
 
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
-}
+export async function dbConnect(): Promise<typeof mongoose> {
+  if (cached.conn) return cached.conn;
 
-async function dbConnect() {
-  if (cached.conn) {
-    return cached.conn;
+  if (!MONGODB_URI) {
+    throw new Error("MONGODB_URI is not configured");
   }
+
   if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-    };
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
-    });
+    cached.promise = mongoose
+      .connect(MONGODB_URI, {
+        bufferCommands: false,
+        maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE ?? 10),
+        minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE ?? 0),
+        serverSelectionTimeoutMS: 10_000,
+        socketTimeoutMS: 45_000,
+      })
+      .catch((error: unknown) => {
+        cached.promise = null;
+        throw error;
+      });
   }
+
   cached.conn = await cached.promise;
   return cached.conn;
 }
