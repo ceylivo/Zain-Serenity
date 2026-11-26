@@ -65,3 +65,12 @@ test("booking cancellation releases only unsettled payment attempts", async () =
   assert.ok(service.includes("payment.isActive = false"));
   assert.ok(service.includes('payment.status === "succeeded"'));
 });
+test("check-in is blocked until assigned-room housekeeping and maintenance work is resolved", async () => {
+  const lifecycle = await read("../../src/lib/bookingLifecycle.ts");
+  assert.ok(lifecycle.includes("HousekeepingTask.exists"));
+  assert.ok(lifecycle.includes("MaintenanceWorkOrder.exists"));
+  assert.ok(lifecycle.includes("unfinished housekeeping or maintenance work"));
+  assert.ok(lifecycle.includes('status: { $in: ["open", "in_progress", "blocked"] }'));
+  assert.ok(lifecycle.includes("synchronizePhysicalRoomOperationalStatus"));
+  assert.ok(lifecycle.includes('input.action === "check_out"'));
+});
