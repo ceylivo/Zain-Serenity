@@ -111,12 +111,6 @@ export default function BookingFlow({ tenantSlug, propertySlug }: { tenantSlug: 
     return () => { active = false; };
   }, [base]);
 
-  useEffect(() => {
-    if (!roomTypeId) return;
-    const firstRate = rates.find((item) => item.roomTypeId === roomTypeId);
-    setRatePlanId(firstRate?._id ?? "");
-  }, [roomTypeId, rates]);
-
   const createBooking = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -144,7 +138,7 @@ export default function BookingFlow({ tenantSlug, propertySlug }: { tenantSlug: 
         body: JSON.stringify({ roomTypeId, ratePlanId, checkIn, checkOut, guests, children, specialRequests }),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error?.message || body.error?.message || body.error || "Booking could not be created.");
+      if (!response.ok) throw new Error(body.error?.message || body.error || "Booking could not be created.");
       setBooking(body.data as CreatedBooking);
       setNotice("Your booking has been reserved. Choose a payment method to continue.");
     } catch (cause) {
@@ -199,7 +193,7 @@ export default function BookingFlow({ tenantSlug, propertySlug }: { tenantSlug: 
         {notice && <div role="status" className="flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={18} />{notice}</div>}
         {!rooms.length && <div className="rounded-2xl bg-white p-8 text-center text-slate-600">This property has no active room types available for online booking.</div>}
         {!booking && rooms.length > 0 && <form onSubmit={createBooking} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-          <label className="block text-sm font-semibold text-slate-700">Room type<select value={roomTypeId} onChange={(event) => setRoomTypeId(event.target.value)} required className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3">{rooms.map((room) => <option key={room._id} value={room._id}>{room.name} · up to {room.maxAdults} adults{room.maxChildren ? ` + ${room.maxChildren} children` : ""}</option>)}</select></label>
+          <label className="block text-sm font-semibold text-slate-700">Room type<select value={roomTypeId} onChange={(event) => { const nextRoomTypeId = event.target.value; setRoomTypeId(nextRoomTypeId); setRatePlanId(rates.find((item) => item.roomTypeId === nextRoomTypeId)?._id ?? ""); }} required className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3">{rooms.map((room) => <option key={room._id} value={room._id}>{room.name} · up to {room.maxAdults} adults{room.maxChildren ? ` + ${room.maxChildren} children` : ""}</option>)}</select></label>
           {selectedRoom?.description && <p className="text-sm text-slate-600">{selectedRoom.description}</p>}
           <label className="block text-sm font-semibold text-slate-700">Rate plan<select value={ratePlanId} onChange={(event) => setRatePlanId(event.target.value)} required className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3">{availableRates.map((rate) => <option key={rate._id} value={rate._id}>{rate.name} · {money(rate.nightlyRate, rate.currency)} / night · tax {rate.taxRatePercent}%</option>)}</select></label>
           {selectedRate && <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">Rate: {money(selectedRate.nightlyRate, selectedRate.currency)} per night. Final total and taxes are calculated by the server when you reserve.</p>}
