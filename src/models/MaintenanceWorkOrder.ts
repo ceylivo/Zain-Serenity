@@ -39,6 +39,7 @@ const MaintenanceWorkOrderSchema = new Schema<IMaintenanceWorkOrder>({
 
 MaintenanceWorkOrderSchema.index({ tenantId: 1, propertyId: 1, status: 1, priority: 1, dueAt: 1 });
 MaintenanceWorkOrderSchema.index({ tenantId: 1, propertyId: 1, physicalRoomId: 1, createdAt: -1 });
+MaintenanceWorkOrderSchema.index({ tenantId: 1, propertyId: 1, physicalRoomId: 1, dueAt: 1 });
 
 const MaintenanceWorkOrder: Model<IMaintenanceWorkOrder> =
   mongoose.models.MaintenanceWorkOrder ||
