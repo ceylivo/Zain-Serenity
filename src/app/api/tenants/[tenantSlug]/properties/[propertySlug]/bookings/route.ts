@@ -123,7 +123,7 @@ export async function GET(request: Request, context: RouteContext) {
     tenantId: access.tenantId,
     propertyId: access.propertyId,
   };
-  if (access.role === "tenant_owner" || access.role === "property_manager" || access.role === "booking_manager") {
+  if (access.role === "tenant_owner" || access.role === "property_manager" || access.role === "booking_manager" || access.role === "receptionist" || access.role === "payment_verifier") {
     // These roles may view bookings for the property they are authorized to manage.
   } else {
     filter.userId = session.user.id;
