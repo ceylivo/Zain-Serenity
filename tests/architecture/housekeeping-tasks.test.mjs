@@ -52,3 +52,11 @@ test("housekeeping create and update synchronize room state atomically with task
     assert.ok(route.includes('source: "housekeeping_task"'));
   }
 });
+test("housekeeping workspace exposes status/search filters and overdue workload indicators", async () => {
+  const page = await read("../../src/app/workspace/housekeeping/page.tsx");
+  assert.ok(page.includes("taskStatusFilter"));
+  assert.ok(page.includes("taskSearch"));
+  assert.ok(page.includes("visibleTasks"));
+  assert.ok(page.includes("overdueTasks"));
+  assert.ok(page.includes("Overdue · needs attention"));
+});
