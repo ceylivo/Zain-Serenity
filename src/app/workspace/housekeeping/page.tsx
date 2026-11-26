@@ -8,8 +8,9 @@ import { Brush, Building2, Check, Loader2, RefreshCw, Wrench } from "lucide-reac
 type Membership = { id: string; role: string; tenant: { name: string; slug: string } };
 type Property = { _id: string; name: string; slug: string };
 type Room = { _id: string; roomNumber: string; floor?: string; status: string };
+type Task = { id: string; physicalRoomId: string; title: string; description: string; status: "open" | "in_progress" | "completed" | "cancelled"; assignedTo: string | null; dueAt: string | null; completedAt: string | null; createdAt: string };
 type Api<T> = { data?: T; error?: { message?: string } };
-const roles = ["tenant_owner", "housekeeping"];
+const roles = ["tenant_owner", "property_manager", "housekeeping"];
 const input = "mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const next: Record<string, string[]> = {
   ready: ["cleaning", "maintenance", "out_of_service"],
@@ -28,6 +29,12 @@ export default function HousekeepingWorkspacePage() {
   const [tenantSlug, setTenantSlug] = useState("");
   const [propertySlug, setPropertySlug] = useState("");
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskRoomId, setTaskRoomId] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskAssignee, setTaskAssignee] = useState("");
+  const [taskDueAt, setTaskDueAt] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -87,6 +94,56 @@ export default function HousekeepingWorkspacePage() {
     return () => { active = false; };
   }, [tenantSlug, propertySlug]);
 
+  const loadTasks = useCallback(async (tenant: string, property: string) => {
+    if (!tenant || !property) return;
+    const response = await fetch(`/api/tenants/${encodeURIComponent(tenant)}/properties/${encodeURIComponent(property)}/housekeeping/tasks`, { cache: "no-store" });
+    const body = await response.json() as Api<Task[]>;
+    if (!response.ok) throw new Error(body.error?.message || "Unable to load housekeeping tasks.");
+    setTasks(Array.isArray(body.data) ? body.data : []);
+  }, []);
+
+  useEffect(() => {
+    if (!tenantSlug || !propertySlug) { setTasks([]); return; }
+    let active = true;
+    void loadTasks(tenantSlug, propertySlug).catch((cause) => {
+      if (active) setError(cause instanceof Error ? cause.message : "Unable to load housekeeping tasks.");
+    });
+    return () => { active = false; };
+  }, [tenantSlug, propertySlug, loadTasks]);
+
+  const createTask = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!taskRoomId || !taskTitle.trim()) return;
+    setBusy("task"); setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/housekeeping/tasks`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ physicalRoomId: taskRoomId, title: taskTitle, description: taskDescription,
+          assignedTo: taskAssignee.trim() || undefined, dueAt: taskDueAt ? new Date(taskDueAt).toISOString() : undefined }),
+      });
+      const body = await response.json() as Api<Task>;
+      if (!response.ok) throw new Error(body.error?.message || "Unable to create housekeeping task.");
+      await loadTasks(tenantSlug, propertySlug);
+      setTaskTitle(""); setTaskDescription(""); setTaskAssignee(""); setTaskDueAt("");
+      setNotice("Housekeeping task created.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to create housekeeping task."); }
+    finally { setBusy(""); }
+  };
+
+  const updateTask = async (task: Task, status: Task["status"]) => {
+    setBusy(task.id); setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/housekeeping/tasks/${task.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+      });
+      const body = await response.json() as Api<Task>;
+      if (!response.ok) throw new Error(body.error?.message || "Unable to update housekeeping task.");
+      await loadTasks(tenantSlug, propertySlug);
+      setNotice(`Task updated to ${status.replaceAll("_", " ")}.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to update housekeeping task."); }
+    finally { setBusy(""); }
+  };
+
   const changeStatus = async (room: Room, status: string) => {
     setBusy(room._id); setError(""); setNotice("");
     try {
@@ -115,6 +172,25 @@ export default function HousekeepingWorkspacePage() {
     {!tenantSlug || !propertySlug ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-600"><Building2 className="mx-auto mb-3" size={32}/>Select a property to view room readiness.</div> : <>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{["ready","occupied","cleaning","maintenance","out_of_service"].map((status) => <div key={status} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-2xl font-bold text-slate-950">{counts[status] ?? 0}</p><p className="mt-1 text-sm capitalize text-slate-600">{pretty(status)}</p></div>)}</section>
       {!canUpdate && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Your role can view room status. A housekeeping team member or tenant owner can update it.</div>}
+      {canUpdate && <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <div><h2 className="text-lg font-semibold text-slate-950">Housekeeping task management</h2><p className="text-sm text-slate-500">Create room-specific cleaning tasks, assign a team member and track deadlines and completion.</p></div>
+        <form onSubmit={(event) => void createTask(event)} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-sm">Room<select required className={input} value={taskRoomId} onChange={(event) => setTaskRoomId(event.target.value)}><option value="">Choose room</option>{rooms.map((room) => <option key={room._id} value={room._id}>{room.roomNumber}</option>)}</select></label>
+          <label className="text-sm">Task title<input required minLength={3} maxLength={120} className={input} value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="Prepare room"/></label>
+          <label className="text-sm">Deadline<input type="datetime-local" className={input} value={taskDueAt} onChange={(event) => setTaskDueAt(event.target.value)}/></label>
+          <label className="text-sm">Assignee user ID<input className={input} value={taskAssignee} onChange={(event) => setTaskAssignee(event.target.value)} placeholder="Optional member ID"/></label>
+          <label className="text-sm">Description<input maxLength={2000} className={input} value={taskDescription} onChange={(event) => setTaskDescription(event.target.value)} placeholder="Task instructions"/></label>
+          <div className="sm:col-span-2 lg:col-span-5"><button disabled={busy === "task" || !rooms.length || !taskRoomId} className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy === "task" ? "Creating…" : "Create housekeeping task"}</button></div>
+        </form>
+        {tasks.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No housekeeping tasks have been created for this property.</p> : <div className="space-y-3">{tasks.map((task) => {
+          const room = rooms.find((item) => item._id === task.physicalRoomId);
+          return <article key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4">
+            <div className="min-w-0"><p className="font-semibold text-slate-900">{task.title} · Room {room?.roomNumber ?? "—"}</p>{task.description && <p className="mt-1 text-sm text-slate-600">{task.description}</p>}<p className="mt-1 text-xs text-slate-500">Assignee: {task.assignedTo ?? "Unassigned"} · Due: {task.dueAt ? new Date(task.dueAt).toLocaleString() : "No deadline"}</p></div>
+            <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs capitalize">{task.status.replaceAll("_", " ")}</span>{task.status === "open" && <button disabled={Boolean(busy)} onClick={() => void updateTask(task, "in_progress")} className="rounded-lg border px-3 py-2 text-xs font-semibold">Start</button>}{task.status === "in_progress" && <button disabled={Boolean(busy)} onClick={() => void updateTask(task, "completed")} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white">Complete</button>}</div>
+          </article>;
+        })}</div>}
+      </section>}
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{rooms.map((room) => <article key={room._id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><div><p className="text-lg font-bold text-slate-950">Room {room.roomNumber}</p><p className="text-xs text-slate-500">{room.floor || "Floor not specified"}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs capitalize">{pretty(room.status)}</span></div>{canUpdate && <div className="flex flex-wrap gap-2">{(next[room.status] ?? []).map((target) => <button key={target} onClick={() => void changeStatus(room,target)} disabled={Boolean(busy)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-semibold capitalize text-slate-700 hover:bg-slate-50 disabled:opacity-50">{target === "ready" ? <Check size={13}/> : target === "maintenance" || target === "out_of_service" ? <Wrench size={13}/> : <Brush size={13}/>} {pretty(target)}</button>)}</div>}</article>)}</section>
       {!rooms.length && <p className="rounded-xl bg-white p-8 text-center text-sm text-slate-500">No physical rooms have been registered for this property yet.</p>}
     </>}
