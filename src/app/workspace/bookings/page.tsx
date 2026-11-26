@@ -9,7 +9,7 @@ type Membership = { id: string; role: string; tenant: { name: string; slug: stri
 type Property = { _id: string; name: string; slug: string; currency: string };
 type Booking = { _id: string; userId: string; checkIn: string; checkOut: string; guests: number; children?: number; totalPrice: number; currency?: string; status: string; paymentStatus?: string; physicalRoomId?: string | null; roomTypeId?: string; specialRequests?: string };
 type Room = { _id: string; roomNumber: string; roomTypeId: string; status: string };
-type Api<T> = { data?: T; error?: { message?: string }; pagination?: { total: number; pages: number } };
+type Api<T> = { data?: T; error?: { message?: string }; pagination?: { page: number; limit: number; total: number; pages: number } };
 const roles = ["tenant_owner", "property_manager", "booking_manager", "receptionist"];
 const input = "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800";
 const date = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
@@ -102,7 +102,7 @@ export default function BookingOperationsPage() {
         const [bookingBody, roomBody] = await Promise.all([bookingResponse.json() as Promise<Api<Booking[]>>, roomResponse.json() as Promise<Api<Room[]>>]);
         if (!bookingResponse.ok) throw new Error(bookingBody.error?.message || "Unable to load bookings.");
         if (!roomResponse.ok) throw new Error(roomBody.error?.message || "Unable to load physical rooms.");
-        if (active) { setBookings(Array.isArray(bookingBody.data) ? bookingBody.data : []); setPagination(bookingBody.pagination ?? { page: bookingPage, limit: 20, total: 0, pages: 0 }); setRooms(Array.isArray(roomBody.data) ? roomBody.data : []); }
+        if (active) { setBookings(Array.isArray(bookingBody.data) ? bookingBody.data : []); setPagination(bookingBody.pagination ?? { page: bookingPage, limit: 20, total: 0, pages: 0 }); setPagination(bookingBody.pagination ?? { page: bookingPage, limit: 20, total: 0, pages: 0 }); setRooms(Array.isArray(roomBody.data) ? roomBody.data : []); }
       } catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Unable to load operations."); }
     })();
     return () => { active = false; };
