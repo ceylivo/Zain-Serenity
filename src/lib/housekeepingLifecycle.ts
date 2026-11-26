@@ -4,6 +4,8 @@ import dbConnect from "@/lib/dbConnect";
 import PhysicalRoom, { type PhysicalRoomStatus } from "@/models/PhysicalRoom";
 import AuditLog from "@/models/AuditLog";
 import Booking, { type BookingStatus } from "@/models/Booking";
+import HousekeepingTask from "@/models/HousekeepingTask";
+import MaintenanceWorkOrder from "@/models/MaintenanceWorkOrder";
 
 export class HousekeepingError extends Error {
   constructor(message: string, public readonly code: "ROOM_NOT_FOUND" | "INVALID_ROOM_STATE" | "HOUSEKEEPING_FAILED") {
@@ -47,6 +49,20 @@ export async function updateHousekeepingStatus(input: {
       }
       if (!transitions[room.status].includes(input.status)) {
         throw new HousekeepingError(`Room cannot transition from ${room.status} to ${input.status}.`, "INVALID_ROOM_STATE");
+      }
+      if (input.status === "ready") {
+        const [openHousekeeping, openMaintenance] = await Promise.all([
+          HousekeepingTask.exists({
+            tenantId: input.tenantId, propertyId: input.propertyId, physicalRoomId: room._id,
+            status: { $in: ["open", "in_progress"] },
+          }).session(session),
+          MaintenanceWorkOrder.exists({
+            tenantId: input.tenantId, propertyId: input.propertyId, physicalRoomId: room._id,
+            status: { $in: ["open", "in_progress", "blocked"] },
+          }).session(session),
+        ]);
+        if (openHousekeeping) throw new HousekeepingError("Complete or cancel active housekeeping tasks before marking this room ready.", "INVALID_ROOM_STATE");
+        if (openMaintenance) throw new HousekeepingError("Complete or cancel open maintenance work orders before marking this room ready.", "INVALID_ROOM_STATE");
       }
       if (input.status === "ready" || input.status === "maintenance" || input.status === "out_of_service") {
         const statuses: BookingStatus[] = input.status === "ready" ? ["checked_in"] : ["pending", "confirmed", "checked_in"];
