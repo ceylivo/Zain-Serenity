@@ -6,6 +6,7 @@ import { resolveTenantAccess } from "@/lib/tenantAccess";
 import { isRecord, isValidDateOnly, readString } from "@/lib/inputValidation";
 import dbConnect from "@/lib/dbConnect";
 import RoomType from "@/models/RoomType";
+import Booking from "@/models/Booking";
 import InventoryDay from "@/models/InventoryDay";
 import AuditLog from "@/models/AuditLog";
 
@@ -76,6 +77,19 @@ export async function POST(request: Request, context: Context) {
   if (Number(quantity) > roomType.inventoryCount) {
     return fail("INVALID_QUANTITY", "Quantity cannot exceed this room type inventory capacity", 422);
   }
+  const rangeStart = new Date(startDate + "T00:00:00.000Z");
+  const rangeEnd = new Date(endDate + "T00:00:00.000Z");
+  const legacyBookings = await Booking.find({
+    tenantId: access.tenantId, propertyId: access.propertyId, roomTypeId: scope.roomTypeId,
+    status: { $in: ["pending", "confirmed", "checked_in"] },
+    checkIn: { $lt: new Date(rangeEnd.getTime() + 86400000) }, checkOut: { $gt: rangeStart },
+  }).select("checkIn checkOut").lean();
+  const legacyReservedByDate = new Map<string, number>();
+  for (const date of dates) {
+    const dayStart = new Date(date + "T00:00:00.000Z");
+    const dayEnd = new Date(dayStart.getTime() + 86400000);
+    legacyReservedByDate.set(date, legacyBookings.filter((booking) => booking.checkIn < dayEnd && booking.checkOut > dayStart).length);
+  }
 
   // Materialize missing days before the transaction. The unique compound index
   // safely arbitrates concurrent first-time inventory creation.
@@ -85,7 +99,7 @@ export async function POST(request: Request, context: Context) {
         { ...scope, date },
         { $setOnInsert: {
           ...scope, date, totalRooms: roomType.inventoryCount,
-          availableRooms: roomType.inventoryCount, reservedRooms: 0, blockedRooms: 0,
+          availableRooms: Math.max(0, roomType.inventoryCount - (legacyReservedByDate.get(date) ?? 0)), reservedRooms: legacyReservedByDate.get(date) ?? 0, blockedRooms: 0,
         } },
         { upsert: true }
       );
