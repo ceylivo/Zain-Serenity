@@ -51,7 +51,6 @@ const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "property:read",
     "booking:read",
     "payment:read",
-    "payment:manage",
     "payment:verify",
     "report:read",
   ],
