@@ -78,3 +78,15 @@ Booking paymentStatus is updated independently (unpaid, pending, failed, paid, o
 - Configure each property's payment instructions before enabling its corresponding method.
 - Staff permissions are checked server-side for payment verification and cash collection.
 - The current implementation does not initiate external provider charges, process payment webhooks, issue refunds, or reconcile bank statements.
+
+
+## Operations workspace
+
+An initial tenant-scoped staff payment review screen is available at `/workspace/payments`.
+
+- It loads the signed-in user's active tenant memberships from `GET /api/tenants`.
+- It loads properties only through the tenant-scoped properties endpoint.
+- It lists payment attempts through the property payment API; staff access is controlled by the server-side `payment:read` permission.
+- Manual receipt verification/rejection and cash collection call the existing permission-protected mutation endpoints.
+- Receipt viewing requests the short-lived authorized receipt URL; the page does not store receipt URLs.
+- The screen is an initial operations UI, not a complete tenant dashboard. Payment settings, refunds, reconciliation, customer-side payment selection and full role-aware navigation remain follow-up work.
