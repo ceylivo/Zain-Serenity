@@ -77,7 +77,7 @@ export async function POST(request: Request, context: Context) {
   try {
     await sessionDb.withTransaction(async () => {
       const [order] = await MaintenanceWorkOrder.create([{
-        tenantId: access.tenantId, propertyId: access.propertyId,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
         physicalRoomId: physicalRoomId ? new mongoose.Types.ObjectId(physicalRoomId) : undefined,
         title, description: description ?? "", priority: priority as (typeof MAINTENANCE_PRIORITIES)[number], dueAt,
         assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
@@ -86,13 +86,13 @@ export async function POST(request: Request, context: Context) {
       }], { session: sessionDb });
       if (order.physicalRoomId) {
         await synchronizePhysicalRoomOperationalStatus({
-          tenantId: access.tenantId, propertyId: access.propertyId,
+          tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
           physicalRoomId: order.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
           session: sessionDb, source: "maintenance_work_order",
         });
       }
       await AuditLog.create([{
-        tenantId: access.tenantId, propertyId: access.propertyId,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
         actorUserId: new mongoose.Types.ObjectId(session.user.id),
         action: "maintenance.work_order.created", resourceType: "maintenance_work_order",
         resourceId: order._id.toString(), outcome: "success",
