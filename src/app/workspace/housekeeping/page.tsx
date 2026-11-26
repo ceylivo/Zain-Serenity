@@ -105,11 +105,12 @@ export default function HousekeepingWorkspacePage() {
   }, []);
 
   useEffect(() => {
-    if (!tenantSlug || !propertySlug) { setTasks([]); return; }
+    if (!tenantSlug || !propertySlug) return;
     let active = true;
-    void loadTasks(tenantSlug, propertySlug).catch((cause) => {
-      if (active) setError(cause instanceof Error ? cause.message : "Unable to load housekeeping tasks.");
-    });
+    void (async () => {
+      try { await loadTasks(tenantSlug, propertySlug); }
+      catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Unable to load housekeeping tasks."); }
+    })();
     return () => { active = false; };
   }, [tenantSlug, propertySlug, loadTasks]);
 
