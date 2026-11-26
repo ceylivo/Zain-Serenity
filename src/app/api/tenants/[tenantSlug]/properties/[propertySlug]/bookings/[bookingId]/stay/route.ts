@@ -16,10 +16,11 @@ export async function POST(request: Request, context: Context) {
   }
   const { tenantSlug, propertySlug, bookingId } = await context.params;
   const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "booking:update" });
-  if (!access.ok || !access.propertyId) {
+  if (!access.ok) {
     const status = access.reason === "tenant_not_found" || access.reason === "property_not_found" ? 404 : 403;
     return NextResponse.json({ error: { code: "FORBIDDEN", message: "You cannot operate bookings for this property." } }, { status });
   }
+  if (!access.propertyId) return NextResponse.json({ error: { code: "PROPERTY_REQUIRED", message: "A property is required." } }, { status: 400 });
   let body: unknown;
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: { code: "INVALID_JSON", message: "Request body must be valid JSON." } }, { status: 400 });
