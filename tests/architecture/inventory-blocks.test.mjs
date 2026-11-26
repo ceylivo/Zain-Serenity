@@ -28,7 +28,7 @@ test("inventory block creation is transactional and records actor and reason", a
 test("partial release targets one tenant-scoped block and atomically updates daily inventory", async () => {
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/route.ts");
   assert.ok(route.includes('permission: "inventory:manage"'));
-  assert.ok(route.includes("blockId: { min: 24"));
+  assert.ok(route.includes("readString(body.blockId, { min: 24, max: 24 })"));
   assert.ok(route.includes("remainingQuantity: { $gte: Number(quantity) }"));
   assert.ok(route.includes("blockedRooms: { $gte: Number(quantity) }"));
   assert.ok(route.includes('action: "inventory.block.partially_released"'));
