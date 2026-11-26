@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, BedDouble, CalendarCheck, CalendarClock, ClipboardList, CreditCard, Loader2, RefreshCw, SprayCan, Wrench } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BedDouble, CalendarCheck, CreditCard, Loader2, RefreshCw, SprayCan, Wrench } from "lucide-react";
 
 type Membership = { id: string; role: string; tenant: { name: string; slug: string } };
 type Property = { _id: string; name: string; slug: string; currency?: string };
