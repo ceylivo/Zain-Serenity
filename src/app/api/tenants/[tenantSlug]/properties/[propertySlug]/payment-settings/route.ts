@@ -14,6 +14,18 @@ type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> }
 const fail = (code: string, message: string, status: number) => NextResponse.json({ error: { code, message } }, { status });
 const METHODS = ["bank_transfer", "easypaisa", "jazzcash", "cash_on_arrival"] as const;
 
+
+function publicSettings(settings: { enabledMethods: string[]; bankTransfer?: unknown; easypaisa?: unknown; jazzcash?: unknown; cashInstructions?: string } | null) {
+  if (!settings) return { enabledMethods: [] as string[] };
+  return {
+    enabledMethods: settings.enabledMethods,
+    ...(settings.enabledMethods.includes("bank_transfer") && settings.bankTransfer ? { bankTransfer: settings.bankTransfer } : {}),
+    ...(settings.enabledMethods.includes("easypaisa") && settings.easypaisa ? { easypaisa: settings.easypaisa } : {}),
+    ...(settings.enabledMethods.includes("jazzcash") && settings.jazzcash ? { jazzcash: settings.jazzcash } : {}),
+    ...(settings.enabledMethods.includes("cash_on_arrival") && settings.cashInstructions ? { cashInstructions: settings.cashInstructions } : {}),
+  };
+}
+
 function optionalText(value: unknown, max: number): string | undefined | null {
   if (value === undefined || value === null || value === "") return undefined;
   return readString(value, { max });
@@ -38,7 +50,7 @@ export async function GET(_request: Request, context: Context) {
   const settings = await PaymentSettings.findOne({ tenantId: property.tenantId, propertyId: property.propertyId })
     .select("enabledMethods bankTransfer easypaisa jazzcash cashInstructions")
     .lean();
-  return NextResponse.json({ data: settings ?? { enabledMethods: [] } });
+  return NextResponse.json({ data: publicSettings(settings) });
 }
 
 export async function PUT(request: Request, context: Context) {
@@ -57,6 +69,7 @@ export async function PUT(request: Request, context: Context) {
   let body: unknown;
   try { body = await request.json(); } catch { return fail("INVALID_JSON", "Request body must be valid JSON.", 400); }
   if (!isRecord(body) || !Array.isArray(body.enabledMethods)) return fail("VALIDATION_ERROR", "enabledMethods must be an array.", 422);
+  if (body.enabledMethods.length > METHODS.length) return fail("VALIDATION_ERROR", "Too many payment methods were supplied.", 422);
   const enabledMethods = [...new Set(body.enabledMethods)];
   if (enabledMethods.some((method) => typeof method !== "string" || !METHODS.includes(method as typeof METHODS[number]))) {
     return fail("VALIDATION_ERROR", "One or more payment methods are unsupported.", 422);
@@ -98,5 +111,5 @@ export async function PUT(request: Request, context: Context) {
     resourceId: settings?._id?.toString(), outcome: "success",
     metadata: { enabledMethods },
   });
-  return NextResponse.json({ data: settings });
+  return NextResponse.json({ data: publicSettings(settings) });
 }
