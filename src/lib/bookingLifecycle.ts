@@ -219,3 +219,61 @@ export async function assignPhysicalRoom(input: {
     await session.endSession();
   }
 }
+
+
+export async function transitionBookingStay(input: {
+  tenantId: mongoose.Types.ObjectId;
+  propertyId: mongoose.Types.ObjectId;
+  bookingId: string;
+  actorUserId: string;
+  action: "check_in" | "check_out";
+}) {
+  await dbConnect();
+  if (!mongoose.isValidObjectId(input.bookingId) || !mongoose.isValidObjectId(input.actorUserId)) {
+    throw new BookingLifecycleError("Booking was not found.", "BOOKING_NOT_FOUND");
+  }
+  const session = await mongoose.startSession();
+  let result: Record<string, unknown> | null = null;
+  try {
+    await session.withTransaction(async () => {
+      const booking = await Booking.findOne({
+        _id: new mongoose.Types.ObjectId(input.bookingId),
+        tenantId: input.tenantId,
+        propertyId: input.propertyId,
+      }).session(session);
+      if (!booking) throw new BookingLifecycleError("Booking was not found.", "BOOKING_NOT_FOUND");
+      if (!booking.physicalRoomId) throw new BookingLifecycleError("Assign a physical room before check-in or check-out.", "INVALID_BOOKING_STATE");
+
+      if (input.action === "check_in") {
+        if (booking.status !== "confirmed") throw new BookingLifecycleError("Only confirmed bookings can be checked in.", "INVALID_BOOKING_STATE");
+        const room = await PhysicalRoom.findOneAndUpdate({
+          _id: booking.physicalRoomId, tenantId: input.tenantId, propertyId: input.propertyId, status: "ready",
+        }, { $set: { status: "occupied" } }, { new: true, session });
+        if (!room) throw new BookingLifecycleError("Assigned room is not ready. Check its housekeeping status.", "ROOM_NOT_AVAILABLE");
+        booking.status = "checked_in";
+      } else {
+        if (booking.status !== "checked_in") throw new BookingLifecycleError("Only checked-in bookings can be checked out.", "INVALID_BOOKING_STATE");
+        const room = await PhysicalRoom.findOneAndUpdate({
+          _id: booking.physicalRoomId, tenantId: input.tenantId, propertyId: input.propertyId, status: "occupied",
+        }, { $set: { status: "cleaning" } }, { new: true, session });
+        if (!room) throw new BookingLifecycleError("Assigned room is not marked occupied; resolve room status before checkout.", "ROOM_NOT_AVAILABLE");
+        booking.status = "checked_out";
+      }
+      await booking.save({ session });
+      await AuditLog.create([{
+        tenantId: input.tenantId, propertyId: input.propertyId,
+        actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
+        action: input.action === "check_in" ? "booking.checked_in" : "booking.checked_out",
+        resourceType: "booking", resourceId: booking._id.toString(), outcome: "success",
+        metadata: { physicalRoomId: booking.physicalRoomId.toString() },
+      }], { session });
+      result = booking.toObject() as unknown as Record<string, unknown>;
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+    return result;
+  } catch (error) {
+    if (error instanceof BookingLifecycleError) throw error;
+    return transactionError(error);
+  } finally {
+    await session.endSession();
+  }
+}
