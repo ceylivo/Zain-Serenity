@@ -75,6 +75,12 @@ export async function cancelTenantBooking(input: {
           payment.status = "cancelled";
           payment.isActive = false;
           await payment.save({ session });
+          await AuditLog.create([{
+            tenantId: input.tenantId, propertyId: input.propertyId,
+            actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
+            action: "payment.attempt.cancelled_with_booking", resourceType: "payment",
+            resourceId: payment._id.toString(), outcome: "success",
+          }], { session });
         }
       }
 
