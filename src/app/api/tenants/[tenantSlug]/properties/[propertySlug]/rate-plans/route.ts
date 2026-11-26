@@ -41,13 +41,13 @@ export async function POST(request: Request, context: Context) {
   const taxRatePercent = body.taxRatePercent === undefined ? 0 : typeof body.taxRatePercent === "number" && body.taxRatePercent >= 0 && body.taxRatePercent <= 100 ? body.taxRatePercent : null;
   const minimumNights = body.minimumNights === undefined ? 1 : readInteger(body.minimumNights, { min: 1, max: 365 });
   const maximumNights = body.maximumNights === undefined ? undefined : readInteger(body.maximumNights, { min: 1, max: 365 });
-  if (!roomTypeId || !mongoose.isValidObjectId(roomTypeId) || !name || !code || !currency || !/^[A-Z]{3}$/.test(currency) || nightlyRate === null || taxRatePercent === null || minimumNights === null || (body.maximumNights !== undefined && maximumNights === null) || (maximumNights !== undefined && maximumNights < minimumNights)) return fail("VALIDATION_ERROR", "Provide valid room type, name, code, currency, rate, tax and stay limits", 422);
+  if (!roomTypeId || !mongoose.isValidObjectId(roomTypeId) || !name || !code || !currency || !/^[A-Z]{3}$/.test(currency) || nightlyRate === null || taxRatePercent === null || minimumNights === null || (body.maximumNights !== undefined && maximumNights === null) || (typeof maximumNights === "number" && typeof minimumNights === "number" && maximumNights < minimumNights)) return fail("VALIDATION_ERROR", "Provide valid room type, name, code, currency, rate, tax and stay limits", 422);
   await dbConnect();
   const roomType = await RoomType.findOne({ _id: roomTypeId, tenantId: access.tenantId, propertyId: access.propertyId }).select("_id").lean();
   if (!roomType) return fail("ROOM_TYPE_NOT_FOUND", "Room type does not belong to this property", 404);
   try {
     const ratePlan = await RatePlan.create({
-      tenantId: access.tenantId, propertyId: access.propertyId, roomTypeId: roomType._id,
+      tenantId: access.tenantId, propertyId: access.propertyId, roomTypeId: new mongoose.Types.ObjectId(roomTypeId),
       name, code, currency, nightlyRate, taxRatePercent, minimumNights, maximumNights,
       description: readString(body.description, { max: 2000 }) ?? "",
       isRefundable: body.isRefundable !== false, isActive: true,
