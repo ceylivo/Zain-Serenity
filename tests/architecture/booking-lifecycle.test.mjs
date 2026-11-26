@@ -74,3 +74,10 @@ test("check-in is blocked until assigned-room housekeeping and maintenance work 
   assert.ok(lifecycle.includes("synchronizePhysicalRoomOperationalStatus"));
   assert.ok(lifecycle.includes('input.action === "check_out"'));
 });
+test("checkout atomically creates a turnover housekeeping task before room reconciliation", async () => {
+  const lifecycle = await read("../../src/lib/bookingLifecycle.ts");
+  assert.ok(lifecycle.includes("Post-checkout room cleaning"));
+  assert.ok(lifecycle.includes("housekeeping.task.auto_created_after_checkout"));
+  assert.ok(lifecycle.includes("HousekeepingTask.create"));
+  assert.ok(lifecycle.includes("synchronizePhysicalRoomOperationalStatus"));
+});
