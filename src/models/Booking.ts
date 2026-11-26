@@ -22,5 +22,6 @@ const BookingSchema=new Schema<IBooking>({
 },{timestamps:true});
 BookingSchema.index({tenantId:1,propertyId:1,checkIn:1,checkOut:1,status:1});
 BookingSchema.index({tenantId:1,propertyId:1,userId:1,createdAt:-1});
+BookingSchema.index({tenantId:1,propertyId:1,physicalRoomId:1,status:1,checkIn:1,checkOut:1});
 const Booking:Model<IBooking>=mongoose.models.Booking||mongoose.model<IBooking>("Booking",BookingSchema);
 export default Booking;
