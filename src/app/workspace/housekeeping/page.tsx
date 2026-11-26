@@ -114,7 +114,7 @@ export default function HousekeepingWorkspacePage() {
   }, [tenantSlug, propertySlug, loadTasks]);
 
   useEffect(() => {
-    if (!tenantSlug || !propertySlug) { setAssignees([]); return; }
+    if (!tenantSlug || !propertySlug) return;
     let active = true;
     void (async () => {
       try {
