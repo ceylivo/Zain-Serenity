@@ -8,6 +8,7 @@ import dbConnect from "@/lib/dbConnect";
 import RoomType from "@/models/RoomType";
 import Booking from "@/models/Booking";
 import InventoryDay from "@/models/InventoryDay";
+import InventoryBlock from "@/models/InventoryBlock";
 import AuditLog from "@/models/AuditLog";
 
 export const runtime = "nodejs";
@@ -61,7 +62,7 @@ export async function POST(request: Request, context: Context) {
   }
 
   const dates = dateKeys(startDate, endDate);
-  if (dates.length < 1 || dates.length > 31) {
+  if (dates.length < 1 || dates.length > 31 || endDate < startDate) {
     return fail("INVALID_DATE_RANGE", "Inventory adjustments must cover between 1 and 31 days", 422);
   }
   await dbConnect();
@@ -91,15 +92,14 @@ export async function POST(request: Request, context: Context) {
     legacyReservedByDate.set(date, legacyBookings.filter((booking) => booking.checkIn < dayEnd && booking.checkOut > dayStart).length);
   }
 
-  // Materialize missing days before the transaction. The unique compound index
-  // safely arbitrates concurrent first-time inventory creation.
   for (const date of dates) {
     try {
       await InventoryDay.updateOne(
         { ...scope, date },
         { $setOnInsert: {
           ...scope, date, totalRooms: roomType.inventoryCount,
-          availableRooms: Math.max(0, roomType.inventoryCount - (legacyReservedByDate.get(date) ?? 0)), reservedRooms: legacyReservedByDate.get(date) ?? 0, blockedRooms: 0,
+          availableRooms: Math.max(0, roomType.inventoryCount - (legacyReservedByDate.get(date) ?? 0)),
+          reservedRooms: legacyReservedByDate.get(date) ?? 0, blockedRooms: 0,
         } },
         { upsert: true }
       );
@@ -109,20 +109,39 @@ export async function POST(request: Request, context: Context) {
   }
 
   const sessionDb = await mongoose.startSession();
+  let createdBlockId = "";
   try {
     await sessionDb.withTransaction(async () => {
-      for (const date of dates) {
-        const filter = action === "block"
-          ? { ...scope, date, availableRooms: { $gte: Number(quantity) } }
-          : { ...scope, date, blockedRooms: { $gte: Number(quantity) } };
-        const update = action === "block"
-          ? { $inc: { availableRooms: -Number(quantity), blockedRooms: Number(quantity) } }
-          : { $inc: { availableRooms: Number(quantity), blockedRooms: -Number(quantity) } };
-        const updated = await InventoryDay.findOneAndUpdate(filter, update, { new: true, session: sessionDb });
-        if (!updated) {
-          throw new Error(action === "block"
-            ? "INSUFFICIENT_AVAILABLE_INVENTORY"
-            : "INSUFFICIENT_BLOCKED_INVENTORY");
+      if (action === "block") {
+        for (const date of dates) {
+          const updated = await InventoryDay.findOneAndUpdate(
+            { ...scope, date, availableRooms: { $gte: Number(quantity) } },
+            { $inc: { availableRooms: -Number(quantity), blockedRooms: Number(quantity) } },
+            { new: true, session: sessionDb }
+          );
+          if (!updated) throw new Error("INSUFFICIENT_AVAILABLE_INVENTORY");
+        }
+        const [block] = await InventoryBlock.create([{
+          ...scope,
+          startDate,
+          endDate,
+          quantity: Number(quantity),
+          remainingQuantity: Number(quantity),
+          status: "active",
+          reason,
+          createdBy: new mongoose.Types.ObjectId(session.user.id),
+          releasedQuantity: 0,
+        }], { session: sessionDb });
+        createdBlockId = block._id.toString();
+      } else {
+        // Legacy quantity-only unblocks remain supported for old records.
+        for (const date of dates) {
+          const updated = await InventoryDay.findOneAndUpdate(
+            { ...scope, date, blockedRooms: { $gte: Number(quantity) } },
+            { $inc: { availableRooms: Number(quantity), blockedRooms: -Number(quantity) } },
+            { new: true, session: sessionDb }
+          );
+          if (!updated) throw new Error("INSUFFICIENT_BLOCKED_INVENTORY");
         }
       }
       await AuditLog.create([{
@@ -130,13 +149,13 @@ export async function POST(request: Request, context: Context) {
         propertyId: access.propertyId,
         actorUserId: new mongoose.Types.ObjectId(session.user.id),
         action: action === "block" ? "inventory.rooms.blocked" : "inventory.rooms.unblocked",
-        resourceType: "room_type",
-        resourceId: roomType._id.toString(),
+        resourceType: action === "block" ? "inventory_block" : "room_type",
+        resourceId: createdBlockId || roomType._id.toString(),
         outcome: "success",
         metadata: { startDate, endDate, quantity: Number(quantity), reason },
       }], { session: sessionDb });
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
-    return NextResponse.json({ data: { action, roomTypeId, startDate, endDate, quantity: Number(quantity) } });
+    return NextResponse.json({ data: { action, blockId: createdBlockId || null, roomTypeId, startDate, endDate, quantity: Number(quantity) } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "INSUFFICIENT_AVAILABLE_INVENTORY") {
