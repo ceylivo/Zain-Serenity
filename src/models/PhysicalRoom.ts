@@ -9,6 +9,7 @@ export interface IPhysicalRoom {
   roomNumber: string;
   floor?: string;
   status: PhysicalRoomStatus;
+  assignmentVersion: number;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -21,12 +22,8 @@ const PhysicalRoomSchema = new Schema<IPhysicalRoom>(
     roomTypeId: { type: Schema.Types.ObjectId, ref: "RoomType", required: true, immutable: true },
     roomNumber: { type: String, required: true, trim: true, maxlength: 24 },
     floor: { type: String, trim: true, maxlength: 24 },
-    status: {
-      type: String,
-      enum: ["ready", "occupied", "cleaning", "maintenance", "out_of_service"],
-      default: "ready",
-      index: true,
-    },
+    status: { type: String, enum: ["ready", "occupied", "cleaning", "maintenance", "out_of_service"], default: "ready", index: true },
+    assignmentVersion: { type: Number, required: true, default: 0, min: 0 },
     notes: { type: String, default: "", maxlength: 1000 },
   },
   { timestamps: true, versionKey: false }
@@ -36,7 +33,6 @@ PhysicalRoomSchema.index({ tenantId: 1, propertyId: 1, roomNumber: 1 }, { unique
 PhysicalRoomSchema.index({ tenantId: 1, propertyId: 1, roomTypeId: 1, status: 1 });
 
 const PhysicalRoom: Model<IPhysicalRoom> =
-  mongoose.models.PhysicalRoom ||
-  mongoose.model<IPhysicalRoom>("PhysicalRoom", PhysicalRoomSchema);
+  mongoose.models.PhysicalRoom || mongoose.model<IPhysicalRoom>("PhysicalRoom", PhysicalRoomSchema);
 
 export default PhysicalRoom;
