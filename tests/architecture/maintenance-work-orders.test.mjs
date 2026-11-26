@@ -35,3 +35,12 @@ test("maintenance workspace consumes property-scoped APIs and exposes priority a
   assert.ok(page.includes("Status history"));
   assert.ok(page.includes('const priorities = ["low", "normal", "high", "urgent"]'));
 });
+test("maintenance create and update synchronize room state atomically with work-order and audit writes", async () => {
+  const createRoute = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/maintenance/work-orders/route.ts");
+  const updateRoute = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/maintenance/work-orders/[workOrderId]/route.ts");
+  for (const route of [createRoute, updateRoute]) {
+    assert.ok(route.includes("synchronizePhysicalRoomOperationalStatus"));
+    assert.ok(route.includes("withTransaction"));
+    assert.ok(route.includes('source: "maintenance_work_order"'));
+  }
+});
