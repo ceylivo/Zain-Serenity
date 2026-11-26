@@ -52,7 +52,7 @@ export async function PATCH(request: Request, context: Context) {
   try {
     await sessionDb.withTransaction(async () => {
       const current = await HousekeepingTask.findOne({
-        _id: taskId, tenantId: access.tenantId, propertyId: access.propertyId,
+        _id: taskId, tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
       }).session(sessionDb);
       if (!current) throw new Error("TASK_NOT_FOUND");
       const before = { status: current.status, assignedTo: current.assignedTo?.toString() ?? null, dueAt: current.dueAt?.toISOString() ?? null };
@@ -66,12 +66,12 @@ export async function PATCH(request: Request, context: Context) {
       if (!current.physicalRoomId) throw new Error("TASK_ROOM_MISSING");
       await current.save({ session: sessionDb });
       await synchronizePhysicalRoomOperationalStatus({
-        tenantId: access.tenantId, propertyId: access.propertyId,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
         physicalRoomId: current.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
         session: sessionDb, source: "housekeeping_task",
       });
       await AuditLog.create([{
-        tenantId: access.tenantId, propertyId: access.propertyId,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
         actorUserId: new mongoose.Types.ObjectId(session.user.id),
         action: "housekeeping.task.updated", resourceType: "housekeeping_task",
         resourceId: current._id.toString(), outcome: "success",
