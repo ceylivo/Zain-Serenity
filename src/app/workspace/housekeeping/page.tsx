@@ -43,6 +43,12 @@ export default function HousekeepingWorkspacePage() {
   const [notice, setNotice] = useState("");
   const [taskStatusFilter, setTaskStatusFilter] = useState("all");
   const [taskSearch, setTaskSearch] = useState("");
+  const [currentTime, setCurrentTime] = useState(0);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const membership = useMemo(() => memberships.find((item) => item.tenant.slug === tenantSlug), [memberships, tenantSlug]);
   const canUpdate = roles.includes(membership?.role ?? "");
 
@@ -184,7 +190,7 @@ export default function HousekeepingWorkspacePage() {
     const haystack = [task.title, task.description, room?.roomNumber ?? "", assignee].join(" ").toLowerCase();
     return matchesStatus && haystack.includes(taskSearch.trim().toLowerCase());
   }), [tasks, rooms, assignees, taskStatusFilter, taskSearch]);
-  const overdueTasks = tasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < Date.now() && !["completed", "cancelled"].includes(task.status)).length;
+  const overdueTasks = currentTime ? tasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < currentTime && !["completed", "cancelled"].includes(task.status)).length : 0;
   const activeTasks = tasks.filter((task) => ["open", "in_progress"].includes(task.status)).length;
   const counts = useMemo(() => rooms.reduce<Record<string, number>>((all, room) => { all[room.status] = (all[room.status] ?? 0) + 1; return all; }, {}), [rooms]);
   if (status === "loading" || loading && memberships.length === 0) return <main className="p-12 text-slate-600"><Loader2 className="mr-2 inline animate-spin"/>Loading housekeeping…</main>;
