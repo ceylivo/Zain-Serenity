@@ -23,6 +23,12 @@ export default function BookingOperationsPage() {
   const [tenantSlug, setTenantSlug] = useState("");
   const [propertySlug, setPropertySlug] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingPage, setBookingPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [bookingSearch, setBookingSearch] = useState("");
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
   const [rooms, setRooms] = useState<Room[]>([]);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -84,18 +90,23 @@ export default function BookingOperationsPage() {
     let active = true;
     void (async () => {
       try {
+        const params = new URLSearchParams({ page: String(bookingPage), limit: "20" });
+        if (statusFilter) params.set("status", statusFilter);
+        if (dateFrom) params.set("checkInFrom", dateFrom);
+        if (dateTo) params.set("checkInTo", dateTo);
+        if (bookingSearch.trim()) params.set("search", bookingSearch.trim());
         const [bookingResponse, roomResponse] = await Promise.all([
-          fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/bookings?page=1&limit=100`, { cache: "no-store" }),
+          fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/bookings?${params.toString()}`, { cache: "no-store" }),
           fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/physical-rooms`, { cache: "no-store" }),
         ]);
         const [bookingBody, roomBody] = await Promise.all([bookingResponse.json() as Promise<Api<Booking[]>>, roomResponse.json() as Promise<Api<Room[]>>]);
         if (!bookingResponse.ok) throw new Error(bookingBody.error?.message || "Unable to load bookings.");
         if (!roomResponse.ok) throw new Error(roomBody.error?.message || "Unable to load physical rooms.");
-        if (active) { setBookings(Array.isArray(bookingBody.data) ? bookingBody.data : []); setRooms(Array.isArray(roomBody.data) ? roomBody.data : []); }
+        if (active) { setBookings(Array.isArray(bookingBody.data) ? bookingBody.data : []); setPagination(bookingBody.pagination ?? { page: bookingPage, limit: 20, total: 0, pages: 0 }); setRooms(Array.isArray(roomBody.data) ? roomBody.data : []); }
       } catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Unable to load operations."); }
     })();
     return () => { active = false; };
-  }, [tenantSlug, propertySlug]);
+  }, [tenantSlug, propertySlug, bookingPage, statusFilter, dateFrom, dateTo, bookingSearch]);
 
   const act = async (booking: Booking, action: "assign" | "unassign" | "confirm" | "check_in" | "check_out") => {
     setBusy(booking._id); setError(""); setNotice("");
@@ -135,11 +146,18 @@ export default function BookingOperationsPage() {
       <label className="text-sm font-medium text-slate-700">Property<select className={input+" mt-1 block w-full"} value={propertySlug} onChange={(event) => setPropertySlug(event.target.value)}><option value="">Choose property</option>{properties.map((item) => <option key={item._id} value={item.slug}>{item.name}</option>)}</select></label>
     </section>
     {!tenantSlug || !propertySlug ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-600"><ClipboardList className="mx-auto mb-3" size={32}/>Select a tenant and property to manage bookings.</div> : <>
+      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
+        <label className="text-sm font-medium text-slate-700">Booking reference<input className={input+" mt-1 block w-full"} placeholder="Full booking ID" value={bookingSearch} onChange={(event) => { setBookingSearch(event.target.value); setBookingPage(1); }}/></label>
+        <label className="text-sm font-medium text-slate-700">Status<select className={input+" mt-1 block w-full"} value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setBookingPage(1); }}><option value="">All statuses</option>{["pending","confirmed","checked_in","checked_out","cancelled","no_show"].map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
+        <label className="text-sm font-medium text-slate-700">Check-in from<input type="date" className={input+" mt-1 block w-full"} value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setBookingPage(1); }}/></label>
+        <label className="text-sm font-medium text-slate-700">Check-in through<input type="date" min={dateFrom || undefined} className={input+" mt-1 block w-full"} value={dateTo} onChange={(event) => { setDateTo(event.target.value); setBookingPage(1); }}/></label>
+        <div className="flex items-end"><button onClick={() => { setBookingSearch(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); setBookingPage(1); }} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold">Clear filters</button></div>
+      </section>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Object.entries({ "Confirmed / arrivals": stats.arrivals, "Guests in house": stats.inHouse, "Departures": stats.departures, "Rooms to assign": stats.unassigned }).map(([name,value]) => <div key={name} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-2xl font-bold text-slate-950">{value}</p><p className="mt-1 text-sm text-slate-600">{name}</p></div>)}
       </section>
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="font-semibold text-slate-900">Reservations</h2><p className="text-xs text-slate-500">{bookings.length} latest bookings · first 100 records</p></div><CalendarDays className="text-teal-700"/></div>
+        <div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="font-semibold text-slate-900">Reservations</h2><p className="text-xs text-slate-500">{pagination.total} matching reservations · page {pagination.page} of {Math.max(1, pagination.pages)}</p></div><CalendarDays className="text-teal-700"/></div>
         {!bookings.length ? <p className="p-10 text-center text-sm text-slate-500">No bookings found for this property.</p> : <div className="divide-y divide-slate-100">{bookings.map((booking) => {
           const matchingRooms = rooms.filter((room) => room.roomTypeId === booking.roomTypeId && room.status === "ready" && room._id !== booking.physicalRoomId);
           const assigned = rooms.find((room) => room._id === booking.physicalRoomId);
@@ -157,6 +175,10 @@ export default function BookingOperationsPage() {
             </div>}
           </article>;
         })}</div>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 p-4">
+          <p className="text-xs text-slate-500">Showing {pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</p>
+          <div className="flex gap-2"><button onClick={() => setBookingPage((value) => Math.max(1, value - 1))} disabled={bookingPage <= 1 || Boolean(busy)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-40">Previous</button><button onClick={() => setBookingPage((value) => Math.min(pagination.pages, value + 1))} disabled={bookingPage >= pagination.pages || Boolean(busy)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-40">Next</button></div>
+        </div>
       </section>
     </>}
   </div></main>;
