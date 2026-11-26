@@ -226,7 +226,7 @@ export async function transitionBookingStay(input: {
   propertyId: mongoose.Types.ObjectId;
   bookingId: string;
   actorUserId: string;
-  action: "check_in" | "check_out";
+  action: "confirm" | "check_in" | "check_out";
 }) {
   await dbConnect();
   if (!mongoose.isValidObjectId(input.bookingId) || !mongoose.isValidObjectId(input.actorUserId)) {
@@ -242,7 +242,12 @@ export async function transitionBookingStay(input: {
         propertyId: input.propertyId,
       }).session(session);
       if (!booking) throw new BookingLifecycleError("Booking was not found.", "BOOKING_NOT_FOUND");
-      if (!booking.physicalRoomId) throw new BookingLifecycleError("Assign a physical room before check-in or check-out.", "INVALID_BOOKING_STATE");
+      if (input.action === "confirm") {
+        if (booking.status !== "pending") throw new BookingLifecycleError("Only pending bookings can be confirmed.", "INVALID_BOOKING_STATE");
+        booking.status = "confirmed";
+      } else {
+        if (!booking.physicalRoomId) throw new BookingLifecycleError("Assign a physical room before check-in or check-out.", "INVALID_BOOKING_STATE");
+      }
 
       if (input.action === "check_in") {
         if (booking.status !== "confirmed") throw new BookingLifecycleError("Only confirmed bookings can be checked in.", "INVALID_BOOKING_STATE");
@@ -263,7 +268,7 @@ export async function transitionBookingStay(input: {
       await AuditLog.create([{
         tenantId: input.tenantId, propertyId: input.propertyId,
         actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
-        action: input.action === "check_in" ? "booking.checked_in" : "booking.checked_out",
+        action: input.action === "confirm" ? "booking.confirmed" : input.action === "check_in" ? "booking.checked_in" : "booking.checked_out",
         resourceType: "booking", resourceId: booking._id.toString(), outcome: "success",
         metadata: { physicalRoomId: booking.physicalRoomId.toString() },
       }], { session });
