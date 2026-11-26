@@ -14,6 +14,7 @@ export interface IHousekeepingTask {
   dueAt?: Date;
   createdBy: mongoose.Types.ObjectId;
   completedAt?: Date;
+  statusHistory: { status: HousekeepingTaskStatus; changedBy: mongoose.Types.ObjectId; changedAt: Date }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +30,7 @@ const HousekeepingTaskSchema = new Schema<IHousekeepingTask>({
   dueAt: { type: Date },
   createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
   completedAt: { type: Date },
+  statusHistory: [{ status: { type: String, enum: HOUSEKEEPING_TASK_STATUSES, required: true }, changedBy: { type: Schema.Types.ObjectId, ref: "User", required: true }, changedAt: { type: Date, required: true } }],
 }, { timestamps: true, versionKey: false });
 
 HousekeepingTaskSchema.index({ tenantId: 1, propertyId: 1, status: 1, dueAt: 1 });
