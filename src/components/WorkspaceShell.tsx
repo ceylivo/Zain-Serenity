@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BedDouble, Boxes, CreditCard, LayoutDashboard, Settings2, SprayCan, Wrench, CalendarClock, Menu, X } from "lucide-react";
+import { BedDouble, Boxes, CreditCard, Settings2, SprayCan, Wrench, CalendarClock, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 const navigation = [
