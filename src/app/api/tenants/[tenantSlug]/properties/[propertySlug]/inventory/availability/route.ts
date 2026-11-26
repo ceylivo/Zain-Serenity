@@ -7,6 +7,7 @@ import { isValidDateOnly, readString } from "@/lib/inputValidation";
 import dbConnect from "@/lib/dbConnect";
 import RoomType from "@/models/RoomType";
 import InventoryDay from "@/models/InventoryDay";
+import Booking from "@/models/Booking";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
@@ -47,7 +48,7 @@ export async function GET(request: Request, context: Context) {
 
   await dbConnect();
   const scope = { tenantId: access.tenantId, propertyId: access.propertyId };
-  const [roomTypes, inventory] = await Promise.all([
+  const [roomTypes, inventory, bookings] = await Promise.all([
     RoomType.find({ ...scope, status: "active" })
       .select("_id name inventoryCount currency")
       .sort({ name: 1 })
@@ -55,6 +56,12 @@ export async function GET(request: Request, context: Context) {
     InventoryDay.find({ ...scope, date: { $gte: startDate, $lte: endDate } })
       .select("roomTypeId date totalRooms availableRooms reservedRooms blockedRooms")
       .lean(),
+    Booking.find({
+      ...scope,
+      status: { $in: ["pending", "confirmed", "checked_in"] },
+      checkIn: { $lt: end },
+      checkOut: { $gt: start },
+    }).select("roomTypeId checkIn checkOut").lean(),
   ]);
 
   const inventoryByKey = new Map(inventory.map((item) => [
@@ -69,9 +76,18 @@ export async function GET(request: Request, context: Context) {
     inventory: dates.map((date) => {
       const day = inventoryByKey.get(`${roomType._id.toString()}:${date}`);
       const totalRooms = day?.totalRooms ?? roomType.inventoryCount;
-      const reservedRooms = day?.reservedRooms ?? 0;
       const blockedRooms = day?.blockedRooms ?? 0;
-      const availableRooms = day?.availableRooms ?? Math.max(0, totalRooms - reservedRooms - blockedRooms);
+      const overlappingBookings = bookings.filter((booking) =>
+        booking.roomTypeId?.toString() === roomType._id.toString() &&
+        booking.checkIn.toISOString().slice(0, 10) <= date &&
+        booking.checkOut.toISOString().slice(0, 10) > date
+      ).length;
+      // Include legacy bookings while avoiding double-counting InventoryDay reservations.
+      const reservedRooms = Math.max(day?.reservedRooms ?? 0, overlappingBookings);
+      const availableRooms = Math.max(0, Math.min(
+        day?.availableRooms ?? totalRooms,
+        totalRooms - reservedRooms - blockedRooms
+      ));
       return { date, totalRooms, availableRooms, reservedRooms, blockedRooms };
     }),
   }));
