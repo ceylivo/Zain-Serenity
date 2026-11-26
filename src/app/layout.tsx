@@ -52,57 +52,36 @@ const appleIconDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(appleIcon
 export const metadata: Metadata = {
   metadataBase: new URL("https://zainserenity.vercel.app"),
   title: {
-    default: "Zain's Serenity | Luxury Coastal Retreat in Crystal Cove",
-    template: "%s | Zain's Serenity",
+    default: "Zain Serenity | Hospitality Operations Platform",
+    template: "%s | Zain Serenity",
   },
-  description:
-    "Experience timeless elegance at Zain's Serenity – a luxury eco‑resort on the Crystal Coast of Mauritius. Overwater spa, private beach, and world‑class dining await.",
+  description: "A multi-property hospitality management platform for reservations, room inventory, payments, housekeeping and maintenance operations.",
+  applicationName: "Zain Serenity",
   keywords: [
-    "luxury resort Mauritius",
-    "Zain's Serenity",
-    "Crystal Cove",
-    "eco resort",
-    "beach villa",
-    "overwater spa",
-    "private marina",
-    "5 star hotel Mauritius",
-    "Zain Shah",
+    "hospitality management software",
+    "hotel operations platform",
+    "property management",
+    "booking management",
+    "room inventory",
+    "housekeeping operations",
+    "maintenance work orders",
+    "hospitality SaaS",
   ],
-  authors: [{ name: "Zain Shah", url: "https://zain-main-web.vercel.app/" }],
-  creator: "Zain Shah",
-  publisher: "Zain's Serenity",
-  alternates: {
-    canonical: "/",
-    languages: {
-      "en-US": "/en-US",
-    },
-  },
+  authors: [{ name: "Zain Serenity" }],
+  creator: "Zain Serenity",
+  publisher: "Zain Serenity",
   openGraph: {
     type: "website",
     url: "https://zainserenity.vercel.app",
-    siteName: "Zain's Serenity",
-    title: "Zain's Serenity | Luxury Coastal Retreat",
-    description:
-      "A luxury eco‑resort on the Crystal Coast of Mauritius. Overwater spa, private beach, and world‑class dining.",
-    images: [
-      {
-        // Absolute URL to ensure it works even if metadataBase is ignored
-        url: "https://zainserenity.vercel.app/images/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Zain's Serenity – Luxury Coastal Retreat",
-      },
-    ],
+    siteName: "Zain Serenity",
+    title: "Zain Serenity | Hospitality Operations Platform",
+    description: "Manage reservations, rooms, payments and property operations in one hospitality platform.",
     locale: "en_US",
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Zain's Serenity | Luxury Coastal Retreat",
-    description:
-      "Luxury eco‑resort in Mauritius with overwater spa, private beach, and world‑class dining.",
-    site: "@serenity",
-    creator: "@zainshah",
-    images: ["https://zainserenity.vercel.app/images/og-image.jpg"],
+    card: "summary",
+    title: "Zain Serenity | Hospitality Operations Platform",
+    description: "Reservations, room inventory, payments and property operations in one place.",
   },
   icons: {
     icon: [
@@ -113,27 +92,14 @@ export const metadata: Metadata = {
       { url: faviconDataUrl, type: "image/svg+xml", sizes: "192x192" },
       { url: faviconDataUrl, type: "image/svg+xml", sizes: "512x512" },
     ],
-    apple: [
-      { url: appleIconDataUrl, sizes: "180x180", type: "image/svg+xml" },
-    ],
+    apple: [{ url: appleIconDataUrl, sizes: "180x180", type: "image/svg+xml" }],
     shortcut: faviconDataUrl,
   },
   manifest: "/images/favicon/manifest.json",
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
-  category: "travel",
-  classification: "Luxury Resort",
+  robots: { index: true, follow: true },
+  category: "technology",
 };
-
+ 
 // ─── Viewport & Theme ────────────────────────────────────
 export const viewport: Viewport = {
   width: "device-width",
