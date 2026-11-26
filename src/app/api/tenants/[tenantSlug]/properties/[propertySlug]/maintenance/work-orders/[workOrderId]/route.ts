@@ -51,7 +51,7 @@ export async function PATCH(request: Request, context: Context) {
   try {
     await sessionDb.withTransaction(async () => {
       const current = await MaintenanceWorkOrder.findOne({
-        _id: workOrderId, tenantId: access.tenantId, propertyId: access.propertyId,
+        _id: workOrderId, tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
       }).session(sessionDb);
       if (!current) throw new Error("WORK_ORDER_NOT_FOUND");
       const before = { status: current.status, priority: current.priority, assignedTo: current.assignedTo?.toString() ?? null, dueAt: current.dueAt?.toISOString() ?? null };
@@ -65,13 +65,13 @@ export async function PATCH(request: Request, context: Context) {
       await current.save({ session: sessionDb });
       if (current.physicalRoomId) {
         await synchronizePhysicalRoomOperationalStatus({
-          tenantId: access.tenantId, propertyId: access.propertyId,
+          tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
           physicalRoomId: current.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
           session: sessionDb, source: "maintenance_work_order",
         });
       }
       await AuditLog.create([{
-        tenantId: access.tenantId, propertyId: access.propertyId,
+        tenantId: access.tenantId, propertyId: access.propertyId as mongoose.Types.ObjectId,
         actorUserId: new mongoose.Types.ObjectId(session.user.id),
         action: "maintenance.work_order.updated", resourceType: "maintenance_work_order",
         resourceId: current._id.toString(), outcome: "success",
