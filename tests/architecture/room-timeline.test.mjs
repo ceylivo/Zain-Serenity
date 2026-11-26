@@ -31,3 +31,11 @@ test("room timeline workspace supports property selection, date range and room g
   assert.ok(page.includes("SprayCan"));
   assert.ok(page.includes("Wrench"));
 });
+test("room timeline resolves assigned staff names without exposing unrelated tenant users", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/operations/room-timeline/route.ts");
+  const page = await read("../../src/app/workspace/room-timeline/page.tsx");
+  assert.ok(route.includes("const assigneeIds = [...new Set([...tasks, ...workOrders]"));
+  assert.ok(route.includes('User.find({ _id: { $in: assigneeIds } }).select("name email")'));
+  assert.ok(route.includes("assignedToName"));
+  assert.ok(page.includes("Assigned to {event.assignedToName}"));
+});
