@@ -58,7 +58,7 @@ export async function createPaymentAttempt(input: {
       if (booking.status === "cancelled" || booking.status === "checked_out" || booking.status === "no_show") {
         throw new PaymentLifecycleError("This booking cannot accept payments in its current state.", "INVALID_PAYMENT_STATE");
       }
-      if (booking.paymentStatus === "paid" || booking.paymentStatus === "partially_refunded") {
+      if (booking.paymentStatus === "paid" || booking.paymentStatus === "partially_paid" || booking.paymentStatus === "partially_refunded") {
         throw new PaymentLifecycleError("This booking is already paid or requires a refund workflow.", "PAYMENT_ALREADY_SETTLED");
       }
       const amount = Math.round(booking.totalPrice * 100) / 100;
@@ -121,6 +121,7 @@ async function settlePayment(input: {
   tenantId: mongoose.Types.ObjectId; propertyId: mongoose.Types.ObjectId;
   paymentId: string; actorUserId: string; outcome: "succeeded" | "failed";
   expectedMethods?: PaymentMethod[];
+  requireSubmittedProof?: boolean;
 }) {
   await dbConnect();
   if (!mongoose.isValidObjectId(input.paymentId) || !mongoose.isValidObjectId(input.actorUserId)) {
@@ -139,8 +140,8 @@ async function settlePayment(input: {
         result = payment.toObject() as unknown as Record<string, unknown>;
         return;
       }
-      if (payment.status !== "pending_verification" && payment.status !== "pending") {
-        throw new PaymentLifecycleError("Only pending payments can be verified or failed.", "INVALID_PAYMENT_STATE");
+      if (input.requireSubmittedProof ? payment.status !== "pending_verification" : payment.status !== "pending" && payment.status !== "pending_verification") {
+        throw new PaymentLifecycleError("Payment is not in the required state for this action.", "INVALID_PAYMENT_STATE");
       }
       if (input.expectedMethods && !input.expectedMethods.includes(payment.method)) {
         throw new PaymentLifecycleError("Payment method is not eligible for this action.", "PAYMENT_METHOD_UNAVAILABLE");
@@ -199,7 +200,7 @@ export function verifyManualPayment(input: {
   tenantId: mongoose.Types.ObjectId; propertyId: mongoose.Types.ObjectId;
   paymentId: string; actorUserId: string; outcome: "succeeded" | "failed";
 }) {
-  return settlePayment({ ...input, expectedMethods: ["bank_transfer", "easypaisa", "jazzcash"] });
+  return settlePayment({ ...input, expectedMethods: ["bank_transfer", "easypaisa", "jazzcash"], requireSubmittedProof: true });
 }
 
 export function collectCashPayment(input: {
