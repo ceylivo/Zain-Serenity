@@ -76,6 +76,7 @@ export async function POST(request: Request, context: Context) {
   if (assignedTo && !(await validAssignee(assignedTo, access.tenantId, access.propertyId))) {
     return fail("INVALID_ASSIGNEE", "Assignee must be an active owner, property manager or housekeeping member assigned to this property", 422);
   }
+  if (!room._id) return fail("ROOM_NOT_FOUND", "Physical room was not found in this property", 404);
   const sessionDb = await mongoose.startSession();
   let createdTask: Record<string, unknown> | null = null;
   try {
@@ -88,7 +89,7 @@ export async function POST(request: Request, context: Context) {
       }], { session: sessionDb });
       await synchronizePhysicalRoomOperationalStatus({
         tenantId: access.tenantId, propertyId: access.propertyId,
-        physicalRoomId: room._id as mongoose.Types.ObjectId, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        physicalRoomId: room._id, actorUserId: new mongoose.Types.ObjectId(session.user.id),
         session: sessionDb, source: "housekeeping_task",
       });
       await AuditLog.create([{
