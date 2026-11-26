@@ -26,7 +26,8 @@ test("housekeeping uses a dedicated tenant permission and prevents making in-hou
   const lifecycle = await read("../../src/lib/housekeepingLifecycle.ts");
   assert.ok(permissions.includes('"inventory:housekeeping"'));
   assert.ok(route.includes('permission: "inventory:housekeeping"'));
-  assert.ok(lifecycle.includes('status: "checked_in"'));
+  assert.ok(lifecycle.includes('["checked_in"]'));
+  assert.ok(lifecycle.includes('status: { $in: statuses }'));
   assert.ok(lifecycle.includes("cannot be marked ready or unavailable"));
 });
 
