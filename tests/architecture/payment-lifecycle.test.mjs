@@ -46,3 +46,22 @@ test("manual verification and cash collection require payment verification permi
   assert.match(cash, /permission: "payment:verify"/);
   assert.match(cash, /collectCashPayment\(/);
 });
+
+test("payment settings are property-scoped and only owners can manage them", async () => {
+  const model = await read("../../src/models/PaymentSettings.ts");
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/payment-settings/route.ts");
+  const permissions = await read("../../src/lib/permissions.ts");
+  assert.match(model, /PaymentSettingsSchema\.index\(\{ tenantId: 1, propertyId: 1 \}, \{ unique: true \}\)/);
+  assert.match(route, /permission: "payment:manage"/);
+  assert.match(route, /enabledMethods/);
+  assert.match(permissions, /tenant_owner: PERMISSIONS/);
+  assert.doesNotMatch(permissions.split("payment_verifier:")[1].split("receptionist:")[0], /payment:manage/);
+});
+
+test("only one active payment attempt can exist per booking", async () => {
+  const model = await read("../../src/models/Payment.ts");
+  const service = await read("../../src/lib/paymentLifecycle.ts");
+  assert.match(model, /isActive: \{ type: Boolean, required: true, default: true \}/);
+  assert.match(model, /partialFilterExpression: \{ isActive: true \}/);
+  assert.match(service, /payment\.isActive = false/);
+});
