@@ -8,6 +8,7 @@ import { Building2, Loader2, RefreshCw, Wrench } from "lucide-react";
 type Membership = { id: string; role: string; tenant: { name: string; slug: string } };
 type Property = { _id: string; name: string; slug: string };
 type Room = { _id: string; roomNumber: string };
+type Assignee = { id: string; name: string; email: string; role: string };
 type WorkOrder = { id: string; physicalRoomId: string | null; title: string; description: string; priority: "low" | "normal" | "high" | "urgent"; status: "open" | "in_progress" | "blocked" | "completed" | "cancelled"; dueAt: string | null; assignedTo: string | null; statusHistory: { status: string; changedBy: string; changedAt: string; note?: string }[] };
 type Api<T> = { data?: T; error?: { message?: string } };
 const input = "mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm";
@@ -21,6 +22,7 @@ export default function MaintenanceWorkspacePage() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [tenantSlug, setTenantSlug] = useState("");
   const [propertySlug, setPropertySlug] = useState("");
@@ -87,6 +89,20 @@ export default function MaintenanceWorkspacePage() {
     return () => { active = false; };
   }, [tenantSlug, propertySlug, refresh]);
 
+  useEffect(() => {
+    if (!tenantSlug || !propertySlug) { setAssignees([]); return; }
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/operations/assignees`, { cache: "no-store" });
+        const body = await response.json() as Api<Assignee[]>;
+        if (!response.ok) throw new Error(body.error?.message || "Unable to load staff directory.");
+        if (active) setAssignees(Array.isArray(body.data) ? body.data : []);
+      } catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Unable to load staff directory."); }
+    })();
+    return () => { active = false; };
+  }, [tenantSlug, propertySlug]);
+
   const createOrder = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
@@ -134,7 +150,7 @@ export default function MaintenanceWorkspacePage() {
         <label className="text-sm">Room<select className={input} value={roomId} onChange={(event) => setRoomId(event.target.value)}><option value="">Property-wide / no room</option>{rooms.map((room) => <option key={room._id} value={room._id}>{room.roomNumber}</option>)}</select></label>
         <label className="text-sm">Priority<select className={input} value={priority} onChange={(event) => setPriority(event.target.value as WorkOrder["priority"])}>{priorities.map((value) => <option key={value} value={value}>{pretty(value)}</option>)}</select></label>
         <label className="text-sm">Deadline<input type="datetime-local" className={input} value={dueAt} onChange={(event) => setDueAt(event.target.value)}/></label>
-        <label className="text-sm">Assignee user ID<input className={input} value={assignee} onChange={(event) => setAssignee(event.target.value)} placeholder="Optional active member ID"/></label>
+        <label className="text-sm">Assign to<select className={input} value={assignee} onChange={(event) => setAssignee(event.target.value)}><option value="">Unassigned</option>{assignees.map((member) => <option key={member.id} value={member.id}>{member.name} · {pretty(member.role)}</option>)}</select></label>
         <label className="text-sm">Description<input maxLength={2000} className={input} value={description} onChange={(event) => setDescription(event.target.value)}/></label>
         <div className="sm:col-span-2 lg:col-span-3"><button disabled={busy || !title.trim()} className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Create work order"}</button></div>
       </form>
@@ -142,7 +158,7 @@ export default function MaintenanceWorkspacePage() {
         {orders.length === 0 ? <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500"><Wrench className="mx-auto mb-2" size={24}/>No maintenance work orders yet.</div> : orders.map((order) => {
           const room = rooms.find((item) => item._id === order.physicalRoomId);
           return <article key={order.id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-slate-950">{order.title}</h3><p className="mt-1 text-sm text-slate-500">{room ? `Room ${room.roomNumber}` : "Property-wide"} · {order.description || "No description"}</p><p className="mt-1 text-xs text-slate-500">Assignee: {order.assignedTo ?? "Unassigned"} · Due: {order.dueAt ? new Date(order.dueAt).toLocaleString() : "No deadline"}</p></div><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase">{order.priority}</span></div>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-slate-950">{order.title}</h3><p className="mt-1 text-sm text-slate-500">{room ? `Room ${room.roomNumber}` : "Property-wide"} · {order.description || "No description"}</p><p className="mt-1 text-xs text-slate-500">Assignee: {assignees.find((member) => member.id === order.assignedTo)?.name ?? "Unassigned"} · Due: {order.dueAt ? new Date(order.dueAt).toLocaleString() : "No deadline"}</p></div><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase">{order.priority}</span></div>
             <div className="flex flex-wrap items-center gap-2"><label className="text-xs">Status<select className={input} value={order.status} onChange={(event) => void updateOrder(order,{ status: event.target.value })}>{statuses.map((value) => <option key={value} value={value}>{pretty(value)}</option>)}</select></label><label className="text-xs">Priority<select className={input} value={order.priority} onChange={(event) => void updateOrder(order,{ priority: event.target.value })}>{priorities.map((value) => <option key={value} value={value}>{pretty(value)}</option>)}</select></label></div>
             <div className="border-t border-slate-100 pt-3"><p className="text-xs font-semibold text-slate-600">Status history</p><p className="mt-1 text-xs text-slate-500">{order.statusHistory.map((entry) => `${pretty(entry.status)} · ${new Date(entry.changedAt).toLocaleString()}${entry.note ? ` · ${entry.note}` : ""}`).join(" → ") || "No status changes recorded"}</p></div>
           </article>;
