@@ -48,7 +48,7 @@ export async function POST(request: Request, context: Context) {
   try {
     const ratePlan = await RatePlan.create({
       tenantId: access.tenantId, propertyId: access.propertyId, roomTypeId: new mongoose.Types.ObjectId(roomTypeId),
-      name, code, currency, nightlyRate, taxRatePercent, minimumNights, maximumNights,
+      name, code, currency, nightlyRate, taxRatePercent, minimumNights: minimumNights ?? 1, maximumNights: maximumNights ?? undefined,
       description: readString(body.description, { max: 2000 }) ?? "",
       isRefundable: body.isRefundable !== false, isActive: true,
     });
