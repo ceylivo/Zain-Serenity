@@ -288,3 +288,7 @@ This is a quantity-based inventory adjustment, not an individually reversible bl
 The property-scoped booking list API supports server-side pagination (`page`, `limit`), status filtering, check-in date range filtering (`checkInFrom`, `checkInTo`) and exact booking-ID lookup (`search`).
 
 All filters are applied after tenant and property scope is established. Non-staff users remain restricted to their own bookings. Invalid statuses, malformed dates, reversed date ranges and non-ObjectId search references are rejected rather than silently broadening the query. The operations workspace exposes these filters and keeps pagination server-side.
+
+## First-class inventory block records
+
+Inventory adjustments now create durable, property-scoped block records with the originating actor, date range, original quantity, remaining quantity, reason and release history. Authorized inventory readers can list a bounded set of records for their active property. Owners and property managers can partially or fully release a specific block by ID; the API updates each affected daily inventory counter and the block ledger in one MongoDB transaction, then records an audit event. The original quantity-based unblock operation remains available for compatibility with blocks created before this ledger was introduced. Full UI for browsing and releasing individual block records, integration tests against a replica-set database, and operational migration/reconciliation of legacy blocked counters remain follow-up work.
