@@ -9,7 +9,6 @@ import { createPaymentAttempt, PaymentLifecycleError } from "@/lib/paymentLifecy
 import { PAYMENT_METHODS, type PaymentMethod } from "@/models/Payment";
 import Payment from "@/models/Payment";
 import PaymentSettings from "@/models/PaymentSettings";
-import Booking from "@/models/Booking";
 import dbConnect from "@/lib/dbConnect";
 
 export const runtime = "nodejs";
