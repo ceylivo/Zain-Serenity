@@ -210,6 +210,30 @@ export async function assignPhysicalRoom(input: {
       booking.physicalRoomId = room._id;
       await booking.save({ session });
       if (input.action === "check_out" && booking.physicalRoomId) {
+        const [turnoverTask] = await HousekeepingTask.create([{
+          tenantId: input.tenantId,
+          propertyId: input.propertyId,
+          physicalRoomId: booking.physicalRoomId,
+          title: "Post-checkout room cleaning",
+          description: "Complete turnover cleaning and inspect the room before marking it ready.",
+          status: "open",
+          createdBy: new mongoose.Types.ObjectId(input.actorUserId),
+          statusHistory: [{
+            status: "open",
+            changedBy: new mongoose.Types.ObjectId(input.actorUserId),
+            changedAt: new Date(),
+          }],
+        }], { session });
+        await AuditLog.create([{
+          tenantId: input.tenantId,
+          propertyId: input.propertyId,
+          actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
+          action: "housekeeping.task.auto_created_after_checkout",
+          resourceType: "housekeeping_task",
+          resourceId: turnoverTask._id.toString(),
+          outcome: "success",
+          metadata: { bookingId: booking._id.toString(), physicalRoomId: booking.physicalRoomId.toString() },
+        }], { session });
         await synchronizePhysicalRoomOperationalStatus({
           tenantId: input.tenantId, propertyId: input.propertyId,
           physicalRoomId: booking.physicalRoomId, actorUserId: new mongoose.Types.ObjectId(input.actorUserId),
