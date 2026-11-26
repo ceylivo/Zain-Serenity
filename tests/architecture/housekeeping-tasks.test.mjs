@@ -33,3 +33,13 @@ test("property managers receive housekeeping task management permission", async 
   assert.ok(permissions.includes('"inventory:housekeeping"'));
   assert.ok(permissions.includes('property_manager: ['));
 });
+test("a room cannot be marked ready while housekeeping or maintenance work remains open", async () => {
+  const lifecycle = await read("../../src/lib/housekeepingLifecycle.ts");
+  assert.ok(lifecycle.includes("HousekeepingTask.exists"));
+  assert.ok(lifecycle.includes("MaintenanceWorkOrder.exists"));
+  assert.ok(lifecycle.includes('status: { $in: ["open", "in_progress"] }'));
+  assert.ok(lifecycle.includes('status: { $in: ["open", "in_progress", "blocked"] }'));
+  assert.ok(lifecycle.includes("Complete or cancel active housekeeping tasks"));
+  assert.ok(lifecycle.includes("Complete or cancel open maintenance work orders"));
+  assert.ok(lifecycle.includes("withTransaction"));
+});
