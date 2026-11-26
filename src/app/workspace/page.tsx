@@ -79,16 +79,17 @@ export default function WorkspaceDashboardPage() {
     return () => { active = false; };
   }, [tenantSlug]);
 
-  const load = useCallback(async () => {
-    if (!tenantSlug || !propertySlug || !date) { setData(null); return; }
-    setRefreshing(true); setError("");
+  const load = useCallback(async (showSpinner = false) => {
+    if (!tenantSlug || !propertySlug || !date) return;
+    if (showSpinner) setRefreshing(true);
+    setError("");
     try {
       const response = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/properties/${encodeURIComponent(propertySlug)}/operations/dashboard?date=${encodeURIComponent(date)}`, { cache: "no-store" });
       const body = await response.json() as Api<Dashboard>;
       if (!response.ok) throw new Error(body.error?.message || "Unable to load property dashboard.");
       setData(body.data ?? null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to load property dashboard."); }
-    finally { setRefreshing(false); }
+    finally { if (showSpinner) setRefreshing(false); }
   }, [tenantSlug, propertySlug, date]);
 
   useEffect(() => { void load(); }, [load]);
@@ -98,7 +99,7 @@ export default function WorkspaceDashboardPage() {
   return <div className="mx-auto max-w-7xl space-y-7">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div><p className="text-xs font-bold uppercase tracking-[.16em] text-teal-700">Property overview</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Good day{selectedTenant ? `, ${selectedTenant.tenant.name}` : ""}</h1><p className="mt-2 text-sm text-slate-500">A live operational snapshot of your hospitality business.</p></div>
-      <button type="button" onClick={() => void load()} disabled={refreshing || !propertySlug} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""}/>Refresh</button>
+      <button type="button" onClick={() => void load(true)} disabled={refreshing || !propertySlug} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""}/>Refresh</button>
     </header>
 
     <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-3">
