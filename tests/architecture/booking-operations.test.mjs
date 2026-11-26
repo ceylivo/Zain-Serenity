@@ -51,3 +51,15 @@ test("booking operations support room reassignment and unassignment through tena
   assert.ok(page.includes('act(booking,"unassign")'));
   assert.ok(page.includes("Reassign room"));
 });
+
+test("booking list supports tenant-scoped status, date and exact reference filters with pagination", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/bookings/route.ts");
+  assert.ok(route.includes('url.searchParams.get("status")'));
+  assert.ok(route.includes('url.searchParams.get("checkInFrom")'));
+  assert.ok(route.includes('url.searchParams.get("checkInTo")'));
+  assert.ok(route.includes('url.searchParams.get("search")'));
+  assert.ok(route.includes("INVALID_FILTER"));
+  assert.ok(route.includes("skip((page - 1) * limit)"));
+  assert.ok(route.includes("countDocuments(filter)"));
+  assert.ok(route.includes("if (!canReadAll) filter.userId = session.user.id"));
+});
