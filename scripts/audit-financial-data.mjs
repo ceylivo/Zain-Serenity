@@ -64,7 +64,8 @@ export async function runFinancialAudit({ uri = process.env.MONGODB_URI, output 
             const bucket = report.currencies.MISSING_CURRENCY ??= {
               fields:0, validFields:0, invalidFields:0, byField:{},
             };
-            const fieldBucket = bucket.byField[entry.field] ??= {
+            const fieldKey = `${definition.name}.${entry.field}`;
+            const fieldBucket = bucket.byField[fieldKey] ??= {
               fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0",
             };
             bucket.fields += 1;
