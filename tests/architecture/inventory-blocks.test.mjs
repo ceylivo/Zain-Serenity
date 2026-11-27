@@ -167,7 +167,7 @@ test("inventory correction approval is restricted to tenant owners and property 
   const propertyManager = permissions.match(/property_manager:\s*\[([\s\S]*?)\n  \]/);
   assert.ok(propertyManager);
   assert.match(propertyManager[1], /inventory:correct_approve/);
-  const receptionist = permissions.match(/receptionist:\\s*\\[([\\s\\S]*?)\\n  \\]/);
+  const receptionist = permissions.match(/receptionist:\s*\[([\s\S]*?)\n  \]/);
   assert.ok(receptionist);
   assert.doesNotMatch(receptionist[1], /inventory:correct_approve/);
 });
