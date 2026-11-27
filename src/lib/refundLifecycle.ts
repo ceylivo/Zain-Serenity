@@ -134,6 +134,9 @@ export async function transitionPaymentRefund(input: {
   if (input.action === "complete" && !input.externalReference?.trim()) {
     throw new RefundLifecycleError("A bank/provider transaction reference is required before recording a completed refund.", "REFUND_REFERENCE_REQUIRED");
   }
+  if ((input.action === "reject" || input.action === "fail") && !input.note?.trim()) {
+    throw new RefundLifecycleError("A reason is required when rejecting or failing a refund.", "INVALID_REFUND_STATE");
+  }
   const session = await mongoose.startSession();
   let result: Record<string, unknown> | null = null;
   try {
@@ -146,6 +149,10 @@ export async function transitionPaymentRefund(input: {
         approve: "approved", reject: "rejected", processing: "processing", complete: "completed", fail: "failed",
       };
       const next = transitions[input.action];
+      if ((input.action === "approve" || input.action === "reject") &&
+          refund.requestedBy.toString() === input.actorUserId) {
+        throw new RefundLifecycleError("A different authorized owner must review the refund request.", "INVALID_REFUND_STATE");
+      }
       const allowed: Record<typeof input.action, RefundStatus[]> = {
         approve: ["requested"], reject: ["requested"],
         processing: ["approved"], complete: ["approved", "processing"], fail: ["approved", "processing"],
