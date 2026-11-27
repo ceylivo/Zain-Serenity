@@ -220,6 +220,7 @@ export default function InventoryWorkspacePage() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message || "Unable to adjust room inventory.");
+      await loadInventoryBlocks(tenantSlug, propertySlug);
       const endDate = shiftDateKey(calendarStart, 13);
       const availabilityResponse = await fetch(`${base}/inventory/availability?startDate=${calendarStart}&endDate=${endDate}`, { cache: "no-store" });
       const availabilityBody = await availabilityResponse.json() as ApiBody<Availability>;
