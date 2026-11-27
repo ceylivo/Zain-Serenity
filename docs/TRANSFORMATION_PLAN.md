@@ -352,3 +352,12 @@ New inventory blocks are individually recorded with original quantity, remaining
 ## Refund ledger foundation (in progress)
 
 A dedicated tenant/property-scoped refund ledger now records requested amount, payment/booking linkage, requester, reviewer, completion actor, lifecycle timestamps, reason, idempotency key and external settlement reference. Refund requests reserve refundable balance atomically against the payment record inside a MongoDB transaction, preventing concurrent requests from exceeding the captured amount. Rejected/failed requests release their reservation; completed refunds retain it. Approval/rejection requires a different authorized owner from the requester, and rejection/failure requires a reason. A refund is only recorded as completed when a bank/provider settlement reference is supplied; this records staff-confirmed evidence and does not initiate a bank transfer or provider refund. Booking payment status is recalculated from successful payments and completed refund ledger entries. API and architecture tests are added; UI integration, database-backed concurrency tests, broader reconciliation reporting and CI acceptance remain outstanding. Existing payment records receive a zero-default reservation field; no historical payment or refund data is rewritten.
+
+
+
+## Refund and reconciliation workspace — initial integration
+
+- `/workspace/refunds` provides owner-only refund requests and review actions, with payment/property context, reason capture, independent review, processing, failure and settlement reference recording. The interface explicitly states it does not transfer money.
+- `/workspace/reconciliation` displays tenant/property financial totals grouped by currency: gross settled payments, completed and pending refunds, net collected and current outstanding booking balances.
+- Both screens are linked from workspace navigation and included in the SaaS lint gate. Architecture tests cover the UI wiring and key reporting/refund safeguards.
+- This is an initial operational interface. Date-range controls, pagination for high-volume properties, downloadable statements, database-backed concurrency tests and browser E2E coverage remain outstanding. Reconciliation outstanding balances are a current snapshot, not historical as-of balances; currencies are not converted.
