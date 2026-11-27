@@ -6,9 +6,9 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("refund records preserve tenant ownership, currency, idempotency and lifecycle history", async () => {
   const model = await read("../../src/models/Refund.ts");
-  assert.match(model, /tenantId: \{ type: Schema\.Types\.ObjectId[^
-]*immutable: true/);
-  assert.match(model, /propertyId: \{ type: Schema\.Types\.ObjectId[^
+  assert.match(model, /tenantId: \{ type: Schema\.Types\.ObjectId.*immutable: true/);
+  assert.match(model, /propertyId: \{ type: Schema\.Types\.ObjectId.*immutable: true/);
+  assert.match(model, /idempotencyKey: \{ type: String.*immutable: true/);
 ]*immutable: true/);
   assert.match(model, /idempotencyKey: \{ type: String[^
 ]*immutable: true/);
