@@ -83,7 +83,7 @@ export async function runFinancialAudit({ uri = process.env.MONGODB_URI, output 
         "Run against a verified backup/staging database first. Large collections may take time to scan.",
       ],
     };
-    output.write(JSON.stringify(result, null, 2) + "\\n");
+    output.write(JSON.stringify(result, null, 2) + "\n");
     return result;
   } finally {
     await mongoose.disconnect();
@@ -92,7 +92,7 @@ export async function runFinancialAudit({ uri = process.env.MONGODB_URI, output 
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runFinancialAudit().catch((error) => {
-    process.stderr.write(`Financial audit failed: ${error instanceof Error ? error.message : String(error)}\\n`);
+    process.stderr.write(`Financial audit failed: ${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
   });
 }
