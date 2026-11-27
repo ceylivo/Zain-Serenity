@@ -55,8 +55,10 @@ export async function POST(request: Request, context: Context) {
   const idempotencyKey = readString(body.idempotencyKey, { min: 8, max: 128 });
   const reason = readString(body.reason, { min: 3, max: 500 });
   const delta = body.deltaBlockedRooms;
+  const reversalOf = body.reversalOf === undefined ? null : readString(body.reversalOf, { min: 24, max: 24 });
   if (!caseId || !mongoose.isValidObjectId(caseId) || !idempotencyKey || !reason ||
-      !Number.isInteger(delta) || Number(delta) === 0) {
+      !Number.isInteger(delta) || Number(delta) === 0 ||
+      (body.reversalOf !== undefined && (!reversalOf || !mongoose.isValidObjectId(reversalOf)))) {
     return fail("VALIDATION_ERROR", "A valid case, idempotency key, reason and non-zero integer correction are required", 422);
   }
   await dbConnect();
@@ -75,14 +77,26 @@ export async function POST(request: Request, context: Context) {
         _id: caseId, ...scope, status: "resolved",
       }).session(sessionDb);
       if (!reviewCase) throw new Error("REVIEW_REQUIRED");
-      const expectedDelta = reviewCase.legacyUntracked > 0
-        ? -reviewCase.legacyUntracked
-        : reviewCase.overtracked > 0 ? reviewCase.overtracked : 0;
-      if (expectedDelta === 0 || Number(delta) !== expectedDelta) throw new Error("CORRECTION_OUT_OF_SCOPE");
+      let originalCorrection = null;
+      if (reversalOf) {
+        originalCorrection = await InventoryCorrection.findOne({
+          _id: reversalOf, ...scope, status: "applied", reconciliationCaseId: reviewCase._id,
+        }).session(sessionDb);
+        if (!originalCorrection || Number(delta) !== -originalCorrection.deltaBlockedRooms) {
+          throw new Error("REVERSAL_NOT_ELIGIBLE");
+        }
+        const priorReversal = await InventoryCorrection.findOne({ ...scope, reversalOf }).session(sessionDb);
+        if (priorReversal) throw new Error("REVERSAL_ALREADY_REQUESTED");
+      } else {
+        const expectedDelta = reviewCase.legacyUntracked > 0
+          ? -reviewCase.legacyUntracked
+          : reviewCase.overtracked > 0 ? reviewCase.overtracked : 0;
+        if (expectedDelta === 0 || Number(delta) !== expectedDelta) throw new Error("CORRECTION_OUT_OF_SCOPE");
+      }
       const day = await InventoryDay.findOne({
         ...scope, roomTypeId: reviewCase.roomTypeId, date: reviewCase.date,
       }).select("blockedRooms availableRooms").session(sessionDb).lean();
-      if (!day || day.blockedRooms !== reviewCase.inventoryBlocked) throw new Error("SNAPSHOT_STALE");
+      if (!day || (!reversalOf && day.blockedRooms !== reviewCase.inventoryBlocked)) throw new Error("SNAPSHOT_STALE");
       const trackedBlocks = await InventoryBlock.find({
         ...scope, roomTypeId: reviewCase.roomTypeId,
         status: { $in: ["active", "partially_released"] },
@@ -95,12 +109,13 @@ export async function POST(request: Request, context: Context) {
         date: reviewCase.date, idempotencyKey, deltaBlockedRooms: Number(delta),
         beforeBlockedRooms: day.blockedRooms, beforeAvailableRooms: day.availableRooms,
         reason, status: "pending", requestedBy: new mongoose.Types.ObjectId(session.user.id),
+        ...(reversalOf ? { reversalOf: new mongoose.Types.ObjectId(reversalOf) } : {}),
       }], { session: sessionDb });
       await AuditLog.create([{
         ...scope, actorUserId: new mongoose.Types.ObjectId(session.user.id),
         action: "inventory.correction.requested", resourceType: "inventory_correction",
         resourceId: correction._id.toString(), outcome: "success",
-        metadata: { reconciliationCaseId: caseId, deltaBlockedRooms: Number(delta), inventoryChanged: false },
+        metadata: { reconciliationCaseId: caseId, deltaBlockedRooms: Number(delta), reversalOf, inventoryChanged: false },
       }], { session: sessionDb });
       created = true;
       response = { id: correction._id.toString(), status: correction.status, inventoryChanged: false };
@@ -110,6 +125,8 @@ export async function POST(request: Request, context: Context) {
     const message = error instanceof Error ? error.message : "";
     if (message === "REVIEW_REQUIRED") return fail("REVIEW_REQUIRED", "A resolved reconciliation case is required before requesting a correction", 409);
     if (message === "CORRECTION_OUT_OF_SCOPE") return fail("CORRECTION_OUT_OF_SCOPE", "Correction must exactly reconcile the discrepancy recorded in the reviewed case", 422);
+    if (message === "REVERSAL_NOT_ELIGIBLE") return fail("REVERSAL_NOT_ELIGIBLE", "Only an applied correction can be reversed, using its exact inverse quantity", 409);
+    if (message === "REVERSAL_ALREADY_REQUESTED") return fail("REVERSAL_ALREADY_REQUESTED", "A reversal request already exists for this correction", 409);
     if (message === "SNAPSHOT_STALE") return fail("SNAPSHOT_STALE", "Inventory no longer matches the reviewed snapshot. Run reconciliation again.", 409);
     if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
       const duplicate = await InventoryCorrection.findOne({ ...scope, idempotencyKey }).lean();
@@ -197,6 +214,12 @@ export async function PATCH(request: Request, context: Context) {
       correction.afterBlockedRooms = updatedDay.blockedRooms;
       correction.afterAvailableRooms = updatedDay.availableRooms;
       await correction.save({ session: sessionDb });
+      if (correction.reversalOf) {
+        const original = await InventoryCorrection.findOneAndUpdate({
+          _id: correction.reversalOf, ...scope, status: "applied",
+        }, { $set: { status: "reversed" } }, { new: true, session: sessionDb });
+        if (!original) throw new Error("REVERSAL_ORIGINAL_NOT_APPLIED");
+      }
       await AuditLog.create([{
         ...scope, actorUserId: new mongoose.Types.ObjectId(session.user.id),
         action: "inventory.correction.applied", resourceType: "inventory_correction",
@@ -213,6 +236,7 @@ export async function PATCH(request: Request, context: Context) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "CORRECTION_NOT_PENDING") return fail("CORRECTION_NOT_PENDING", "Correction is already decided or not found", 409);
+    if (message === "REVERSAL_ORIGINAL_NOT_APPLIED") return fail("REVERSAL_NOT_ELIGIBLE", "The original correction is no longer eligible for reversal", 409);
     if (message === "INDEPENDENT_APPROVAL_REQUIRED") return fail("INDEPENDENT_APPROVAL_REQUIRED", "The correction requester cannot approve or reject their own request", 403);
     if (message === "CORRECTION_SNAPSHOT_STALE") return fail("SNAPSHOT_STALE", "Inventory or tracked block history changed after the correction request. Reconcile again.", 409);
     if (message === "CORRECTION_WOULD_OVERDRAW") return fail("INVALID_CORRECTION", "Correction would make blocked or available inventory negative", 409);
