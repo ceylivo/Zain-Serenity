@@ -171,3 +171,25 @@ test("inventory correction approval is restricted to tenant owners and property 
   assert.ok(receptionist);
   assert.doesNotMatch(receptionist[1], /inventory:correct_approve/);
 });
+
+test("inventory correction reversals are separate, idempotent compensating ledger entries", async () => {
+  const model = await read("../../src/models/InventoryCorrection.ts");
+  assert.match(model, /reversalOf/);
+  assert.match(model, /partialFilterExpression: \{ reversalOf: \{ \$exists: true \} \}/);
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/corrections/route.ts");
+  assert.match(route, /REVERSAL_NOT_ELIGIBLE/);
+  assert.match(route, /REVERSAL_ALREADY_REQUESTED/);
+  assert.match(route, /-originalCorrection\.deltaBlockedRooms/);
+  assert.match(route, /REVERSAL_ORIGINAL_NOT_APPLIED/);
+  assert.match(route, /status: "reversed"/);
+  assert.match(route, /correction\.reversalOf/);
+});
+
+test("inventory reconciliation workspace exposes correction approval and reversal workflow", async () => {
+  const page = await read("../../src/app/workspace/inventory-reconciliation/page.tsx");
+  assert.match(page, /Inventory correction ledger/);
+  assert.match(page, /Request correction/);
+  assert.match(page, /Approve & apply/);
+  assert.match(page, /Request reversal/);
+  assert.match(page, /requestedBy !== session\?\.user\?\.id/);
+});
