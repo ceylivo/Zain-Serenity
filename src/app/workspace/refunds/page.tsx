@@ -52,7 +52,7 @@ export default function RefundsPage() {
   }, [status, router]);
 
   useEffect(() => {
-    if (!tenant) { setProperties([]); setProperty(""); return; }
+    if (!tenant) return;
     let active = true;
     void (async () => {
       try {
@@ -87,7 +87,7 @@ export default function RefundsPage() {
     finally { setBusy(""); }
   }, [tenant, property]);
 
-  useEffect(() => { setRefunds({}); void load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const createRefund = async (payment: Payment) => {
     const amount = Number(amounts[payment._id]);
