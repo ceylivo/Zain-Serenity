@@ -135,3 +135,36 @@ test("inventory reconciliation workspace can open and close auditable review cas
   assert.match(page, /resolutionNote/);
   assert.match(page, /No inventory quantities were changed|does not change inventory/i);
 });
+
+
+test("inventory correction ledger is tenant-scoped, idempotent and preserves immutable snapshot evidence", async () => {
+  const model = await read("../../src/models/InventoryCorrection.ts");
+  for (const field of ["tenantId", "propertyId", "roomTypeId", "reconciliationCaseId", "date", "idempotencyKey", "deltaBlockedRooms", "beforeBlockedRooms", "beforeAvailableRooms", "requestedBy"]) {
+    assert.ok(model.includes(field));
+  }
+  assert.match(model, /unique: true/);
+  assert.match(model, /immutable: true/);
+  assert.match(model, /"pending", "applied", "rejected", "reversed"/);
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/corrections/route.ts");
+  assert.match(route, /permission: "inventory:manage"/);
+  assert.match(route, /permission: "inventory:correct_approve"/);
+  assert.match(route, /INDEPENDENT_APPROVAL_REQUIRED/);
+  assert.match(route, /CORRECTION_SNAPSHOT_STALE/);
+  assert.match(route, /CORRECTION_WOULD_OVERDRAW/);
+  assert.match(route, /sessionDb\.withTransaction/);
+  assert.match(route, /inventory\.correction\.applied/);
+  assert.match(route, /beforeBlockedRooms/);
+  assert.match(route, /afterBlockedRooms/);
+  assert.match(route, /reconciliationCaseId/);
+  assert.match(route, /status: "resolved"/);
+});
+
+test("inventory correction approval is restricted to tenant owners", async () => {
+  const permissions = await read("../../src/lib/permissions.ts");
+  assert.match(permissions, /"inventory:correct_approve"/);
+  const owner = permissions.match(/tenant_owner:\s*PERMISSIONS/);
+  assert.ok(owner);
+  const propertyManager = permissions.match(/property_manager:\s*\[([\s\S]*?)\n  \]/);
+  assert.ok(propertyManager);
+  assert.doesNotMatch(propertyManager[1], /inventory:correct_approve/);
+});
