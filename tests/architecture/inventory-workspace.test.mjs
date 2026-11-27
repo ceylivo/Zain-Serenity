@@ -56,11 +56,15 @@ test("inventory block API is tenant scoped, date bounded and transactional", asy
   assert.ok(route.includes("AuditLog.create"));
 });
 
-test("inventory workspace exposes reasoned date-range block and unblock controls", async () => {
+test("inventory workspace exposes tracked block creation and per-record partial release controls", async () => {
   const page = await read("../../src/app/workspace/inventory/page.tsx");
   assert.ok(page.includes("/inventory/blocks"));
-  assert.ok(page.includes('value="block"'));
-  assert.ok(page.includes('value="unblock"'));
+  assert.ok(page.includes("Block room inventory"));
   assert.ok(page.includes("blockReason"));
-  assert.ok(page.includes("Reserved rooms cannot be blocked."));
+  assert.ok(page.includes("Inventory block history"));
+  assert.ok(page.includes("releaseQuantities"));
+  assert.ok(page.includes("releaseReasons"));
+  assert.ok(page.includes("releaseInventoryBlock"));
+  assert.ok(page.includes("Release quantities later against this exact record"));
+  assert.ok(!page.includes('value="unblock"'));
 });
