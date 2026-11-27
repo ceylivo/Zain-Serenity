@@ -51,7 +51,7 @@ export default function ReconciliationPage() {
   }, [status, router]);
 
   useEffect(() => {
-    if (!tenant) { setProperties([]); setProperty(""); return; }
+    if (!tenant) return;
     let active = true;
     void (async () => {
       try {
@@ -79,7 +79,7 @@ export default function ReconciliationPage() {
     finally { setLoading(false); }
   }, [tenant, property]);
 
-  useEffect(() => { setReport(null); void load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
   const canView = selected?.role && ["tenant_owner", "property_manager", "payment_verifier", "analyst"].includes(selected.role);
   const currencies = report ? [...new Set([...Object.keys(report.totals), ...Object.keys(report.outstandingBalances)])].sort() : [];
 
