@@ -20,8 +20,8 @@ test("booking price is calculated from a tenant-owned active rate plan", async (
   assert.ok(service.includes("tenantId: input.tenantId"));
   assert.ok(service.includes("propertyId: input.propertyId"));
   assert.ok(service.includes("isActive: true"));
-  assert.ok(service.includes("const subtotal = rate.nightlyRate * nights.length"));
-  assert.ok(service.includes("const taxes = Math.round(subtotal * rate.taxRatePercent / 100)"));
+  assert.ok(service.includes("const subtotalMinor = nightlyMinor * nights.length"));
+  assert.ok(service.includes("const taxMinor = Math.round(subtotalMinor * rate.taxRatePercent / 100)"));
   assert.ok(!service.includes("input.totalPrice"));
 });
 
