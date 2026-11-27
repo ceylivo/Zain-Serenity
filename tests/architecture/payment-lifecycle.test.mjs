@@ -16,9 +16,11 @@ test("payment attempts are tenant/property scoped and idempotent", async () => {
 test("payment amounts come from the booking and not request input", async () => {
   const service = await read("../../src/lib/paymentLifecycle.ts");
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/payments/route.ts");
-  assert.match(service, /const amount = Math\.round\(booking\.totalPrice \* 100\) \/ 100/);
+  assert.match(service, /normalizeMoney\(booking\.totalPrice, currency\)/);
   assert.doesNotMatch(route, /body\.amount|body\.totalPrice/);
-  assert.match(service, /paymentStatus = "pending"/);\n  assert.match(service, /toMinorUnits/);\n  assert.match(service, /paidMinor >= toMinorUnits/);
+  assert.match(service, /paymentStatus = "pending"/);
+  assert.match(service, /toMinorUnits/);
+  assert.match(service, /paidMinor >= toMinorUnits/);
 });
 
 test("Stripe is explicitly unavailable until test checkout is implemented", async () => {
