@@ -17,9 +17,12 @@ const validDate = (value: string | null) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 };
-const groupTotals = (rows: Array<{ _id: string; amount: number; count: number }>) =>
+const decimalToMinorUnits = (value: unknown, currency: string) =>
+  toMinorUnits(String(value), currency);
+
+const groupTotals = (rows: Array<{ _id: string; amount: unknown; count: number }>) =>
   Object.fromEntries(rows.map((row) => [row._id, {
-    amount: fromMinorUnits(toMinorUnits(row.amount, row._id), row._id),
+    amount: fromMinorUnits(decimalToMinorUnits(row.amount, row._id), row._id),
     count: row.count,
   }]));
 
@@ -60,15 +63,15 @@ export async function GET(request: Request, context: Context) {
   const [payments, refunds, outstanding] = await Promise.all([
     Payment.aggregate([
       { $match: paymentMatch },
-      { $group: { _id: "$currency", amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+      { $group: { _id: "$currency", amount: { $sum: { $toDecimal: "$amount" } }, count: { $sum: 1 } } },
     ]),
     Refund.aggregate([
       { $match: refundMatch },
       { $group: {
         _id: "$currency",
-        completedAmount: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$amount", 0] } },
+        completedAmount: { $sum: { $toDecimal: { $cond: [{ $eq: ["$status", "completed"] }, "$amount", 0] } } },
         completedCount: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
-        pendingAmount: { $sum: { $cond: [{ $in: ["$status", ["requested", "approved", "processing"]] }, "$amount", 0] } },
+        pendingAmount: { $sum: { $toDecimal: { $cond: [{ $in: ["$status", ["requested", "approved", "processing"]] }, "$amount", 0] } } },
         pendingCount: { $sum: { $cond: [{ $in: ["$status", ["requested", "approved", "processing"]] }, 1, 0] } },
       } },
     ]),
@@ -109,15 +112,15 @@ export async function GET(request: Request, context: Context) {
       { $addFields: {
         paidAmount: { $sum: { $map: {
           input: "$payments", as: "payment",
-          in: { $cond: [{ $eq: ["$$payment.currency", { $ifNull: ["$currency", "PKR"] }] }, "$$payment.amount", 0] },
+          in: { $toDecimal: { $cond: [{ $eq: ["$payment.currency", { $ifNull: ["$currency", "PKR"] }] }, "$payment.amount", 0] } },
         } } },
         refundedAmount: { $sum: { $map: {
           input: "$refunds", as: "refund",
-          in: { $cond: [{ $eq: ["$$refund.currency", { $ifNull: ["$currency", "PKR"] }] }, "$$refund.amount", 0] },
+          in: { $toDecimal: { $cond: [{ $eq: ["$refund.currency", { $ifNull: ["$currency", "PKR"] }] }, "$refund.amount", 0] } },
         } } },
       } },
       { $addFields: {
-        outstandingAmount: { $max: [0, { $subtract: [{ $add: ["$totalPrice", "$refundedAmount"] }, "$paidAmount"] }] },
+        outstandingAmount: { $max: [{ $toDecimal: "0" }, { $subtract: [{ $add: [{ $toDecimal: "$totalPrice" }, "$refundedAmount"] }, "$paidAmount"] }] },
       } },
       { $match: { outstandingAmount: { $gt: 0 } } },
       { $group: {
@@ -130,9 +133,9 @@ export async function GET(request: Request, context: Context) {
 
   const gross = groupTotals(payments);
   const refundTotals = Object.fromEntries(refunds.map((row) => [row._id, {
-    completedAmount: fromMinorUnits(toMinorUnits(row.completedAmount, row._id), row._id),
+    completedAmount: fromMinorUnits(decimalToMinorUnits(row.completedAmount, row._id), row._id),
     completedCount: row.completedCount,
-    pendingAmount: fromMinorUnits(toMinorUnits(row.pendingAmount, row._id), row._id),
+    pendingAmount: fromMinorUnits(decimalToMinorUnits(row.pendingAmount, row._id), row._id),
     pendingCount: row.pendingCount,
   }]));
   const currencies = [...new Set([...Object.keys(gross), ...Object.keys(refundTotals)])];
@@ -152,7 +155,7 @@ export async function GET(request: Request, context: Context) {
   }));
 
   const outstandingByCurrency = Object.fromEntries(outstanding.map((row) => [row._id, {
-    amount: fromMinorUnits(toMinorUnits(row.amount, row._id), row._id),
+    amount: fromMinorUnits(decimalToMinorUnits(row.amount, row._id), row._id),
     bookings: row.bookings,
   }]));
 
