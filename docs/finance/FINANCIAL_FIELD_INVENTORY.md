@@ -58,7 +58,7 @@ The JSON report includes:
 - document and monetary-field scan counts per collection;
 - missing currency records separately, without assuming the legacy PKR fallback;
 - invalid currency codes, malformed values, unsupported decimal precision, negative amounts, non-finite values and unsafe integer magnitudes;
-- exact integer minor-unit totals grouped by both currency and field (for example `USD -> amount`), avoiding the invalid practice of summing booking totals, tax subtotals and payment amounts into one meaningless currency total;
+- exact integer minor-unit totals grouped by currency, collection and field (for example `USD -> payments.amount`), avoiding the invalid practice of summing booking totals, tax subtotals and payment amounts into one meaningless currency total;
 - the first 100 anomaly examples plus full anomaly counts.
 
 The audit is an observational scan, not a transactionally frozen point-in-time snapshot. Run during a quiet window or against a restored backup for migration sign-off. It writes only its JSON report to stdout; it does not persist report files or modify MongoDB.
