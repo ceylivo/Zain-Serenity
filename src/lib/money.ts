@@ -22,7 +22,18 @@ export function currencyMinorUnitDigits(currency: string): number {
 
 export function toMinorUnits(value: number | string, currency: string): number {
   const digits = currencyMinorUnitDigits(currency);
-  const raw = typeof value === "number" ? String(value) : value.trim();
+  const factor = 10 ** digits;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new RangeError("Money amount must be finite.");
+    const scaled = value * factor;
+    const rounded = Math.round(scaled);
+    const tolerance = Math.max(1e-9, Number.EPSILON * Math.abs(scaled) * 2);
+    if (!Number.isSafeInteger(rounded) || Math.abs(scaled - rounded) > tolerance) {
+      throw new RangeError(`Amount has more than ${digits} decimal places for ${currency.toUpperCase()}.`);
+    }
+    return rounded;
+  }
+  const raw = value.trim();
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
   if (!match) throw new RangeError("Money amount must be a plain decimal value.");
   const fraction = match[3] ?? "";
@@ -30,7 +41,6 @@ export function toMinorUnits(value: number | string, currency: string): number {
   if (/[1-9]/.test(significantExtraPrecision)) {
     throw new RangeError(`Amount has more than ${digits} decimal places for ${currency.toUpperCase()}.`);
   }
-  const factor = 10 ** digits;
   const whole = Number(match[2]);
   const fractional = Number((fraction.slice(0, digits) + "0".repeat(digits)).slice(0, digits) || "0");
   const minor = whole * factor + fractional;
