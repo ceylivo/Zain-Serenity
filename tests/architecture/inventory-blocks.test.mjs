@@ -99,8 +99,17 @@ test("opening a reconciliation case rechecks current counters and never changes 
   assert.match(route, /permission: "inventory:manage"/);
   assert.match(route, /DISCREPANCY_NO_LONGER_EXISTS/);
   assert.match(route, /snapshotKey/);
-  assert.match(route, /InventoryReconciliationCase\.findOneAndUpdate/);
-  assert.doesNotMatch(route, /InventoryDay\.findOneAndUpdate|InventoryDay\.updateOne|\.save\(/);
+  assert.match(route, /sessionDb\.withTransaction/);
+  assert.match(route, /InventoryReconciliationCase\.create/);
+  assert.match(route, /readConcern: \{ level: "snapshot" \}/);
+  assert.match(route, /RECONCILIATION_SNAPSHOT_CHANGED/);
+  assert.match(route, /RECONCILIATION_SNAPSHOT_UNVERIFIABLE/);
+  assert.match(route, /timestamps: false/);
+  assert.match(route, /updatedAt: day\.updatedAt/);
+  assert.match(route, /updatedAt: block\.updatedAt/);
+  const createHandler = route.split("export async function POST")[1];
+  assert.doesNotMatch(createHandler, /\$inc:\s*\{[^}]*blockedRooms/);
+  assert.doesNotMatch(createHandler, /availableRooms:\s*\{|blockedRooms:\s*\{/);
 });
 
 test("review case decisions are tenant scoped, transactional and audit logged without stock mutation", async () => {
