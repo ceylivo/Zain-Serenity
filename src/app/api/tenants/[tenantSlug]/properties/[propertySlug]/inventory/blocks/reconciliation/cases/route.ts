@@ -70,6 +70,14 @@ export async function PATCH(request: Request, context: Context) {
   try {
     let updated: Record<string, unknown> | null = null;
     await sessionDb.withTransaction(async () => {
+      const existingCase = await InventoryReconciliationCase.findOne({
+        _id: caseId, tenantId: auth.access.tenantId, propertyId: auth.access.propertyId, status: "open",
+      }).session(sessionDb);
+      if (!existingCase) throw new Error("CASE_NOT_OPEN_OR_NOT_FOUND");
+      if (existingCase.createdBy.toString() === auth.session.user.id) {
+        throw new Error("CASE_CREATOR_CANNOT_REVIEW");
+      }
+
       const item = await InventoryReconciliationCase.findOneAndUpdate(
         { _id: caseId, tenantId: auth.access.tenantId, propertyId: auth.access.propertyId, status: "open" },
         { $set: {
@@ -93,6 +101,7 @@ export async function PATCH(request: Request, context: Context) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "CASE_NOT_OPEN_OR_NOT_FOUND") return fail("CASE_NOT_OPEN", "Review case is already closed or not found in this property", 409);
+    if (message === "CASE_CREATOR_CANNOT_REVIEW") return fail("INDEPENDENT_REVIEW_REQUIRED", "The person who opened this reconciliation case cannot resolve or dismiss it. A different authorized reviewer is required.", 403);
     if (/Transaction numbers are only allowed|replica set|mongos|does not support transactions/i.test(message)) {
       return fail("TRANSACTION_UNAVAILABLE", "Review changes require MongoDB transaction support", 503);
     }
