@@ -69,7 +69,7 @@ export async function PATCH(request: Request, context: Context) {
   try { body = await request.json(); } catch { return fail("INVALID_JSON", "Request body must be valid JSON.", 400); }
   if (!isRecord(body)) return fail("VALIDATION_ERROR", "A JSON object is required.", 422);
   const refundId = readString(body.refundId, { min: 24, max: 24 });
-  const action = readString(body.action, { min: 5, max: 10 });
+  const action = readString(body.action, { min: 4, max: 10 });
   const note = body.note === undefined ? undefined : readString(body.note, { min: 1, max: 500 });
   const externalReference = body.externalReference === undefined ? undefined : readString(body.externalReference, { min: 3, max: 160 });
   if (!refundId || !mongoose.isValidObjectId(refundId) || !["approve", "reject", "processing", "complete", "fail"].includes(action ?? "") ||
@@ -78,10 +78,10 @@ export async function PATCH(request: Request, context: Context) {
   }
   try {
     await dbConnect();
-    const refund = await Refund.findOne({ _id: refundId, tenantId: access.tenantId, propertyId: access.propertyId }).select("_id").lean();
+    const refund = await Refund.findOne({ _id: refundId, paymentId, tenantId: access.tenantId, propertyId: access.propertyId }).select("_id").lean();
     if (!refund) return fail("REFUND_NOT_FOUND", "Refund was not found in this property.", 404);
     const result = await transitionPaymentRefund({
-      tenantId: access.tenantId, propertyId: access.propertyId, refundId,
+      tenantId: access.tenantId, propertyId: access.propertyId, refundId, paymentId,
       actorUserId: session.user.id, action: action as "approve" | "reject" | "processing" | "complete" | "fail",
       note: note ?? undefined, externalReference: externalReference ?? undefined,
     });
