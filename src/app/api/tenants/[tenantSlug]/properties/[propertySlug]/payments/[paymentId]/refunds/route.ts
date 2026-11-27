@@ -6,6 +6,7 @@ import { resolveTenantAccess } from "@/lib/tenantAccess";
 import { isRecord, readString } from "@/lib/inputValidation";
 import { requestPaymentRefund, transitionPaymentRefund, RefundLifecycleError } from "@/lib/refundLifecycle";
 import Refund from "@/models/Refund";
+import dbConnect from "@/lib/dbConnect";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string; paymentId: string }> };
@@ -29,6 +30,7 @@ export async function GET(_request: Request, context: Context) {
   const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "payment:read" });
   if (!access.ok || !access.propertyId) return fail("FORBIDDEN", "Payment read permission is required.", 403);
   if (!mongoose.isValidObjectId(paymentId)) return fail("PAYMENT_NOT_FOUND", "Payment was not found.", 404);
+  await dbConnect();
   const refunds = await Refund.find({
     tenantId: access.tenantId, propertyId: access.propertyId, paymentId,
   }).sort({ createdAt: -1 }).limit(100).lean();
@@ -75,6 +77,7 @@ export async function PATCH(request: Request, context: Context) {
     return fail("VALIDATION_ERROR", "Provide a valid refundId, action, optional note and settlement reference.", 422);
   }
   try {
+    await dbConnect();
     const refund = await Refund.findOne({ _id: refundId, tenantId: access.tenantId, propertyId: access.propertyId }).select("_id").lean();
     if (!refund) return fail("REFUND_NOT_FOUND", "Refund was not found in this property.", 404);
     const result = await transitionPaymentRefund({
