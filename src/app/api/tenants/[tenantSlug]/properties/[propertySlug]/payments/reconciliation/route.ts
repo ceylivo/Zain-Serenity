@@ -113,7 +113,7 @@ export async function GET(request: Request, context: Context) {
         } } },
       } },
       { $addFields: {
-        outstandingAmount: { $max: [0, { $subtract: { $add: ["$totalPrice", "$refundedAmount"] }, "$paidAmount" }] },
+        outstandingAmount: { $max: [0, { $subtract: [{ $add: ["$totalPrice", "$refundedAmount"] }, "$paidAmount"] }] },
       } },
       { $match: { outstandingAmount: { $gt: 0 } } },
       { $group: {
