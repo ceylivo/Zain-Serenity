@@ -33,6 +33,8 @@ test("refund completion requires external settlement evidence and keeps booking/
   assert.match(service, /payment\.status = "refunded"/);
   assert.match(service, /booking\.paymentStatus = net === 0 && gross > 0 \? "refunded"/);
   assert.match(service, /withTransaction/);
+  assert.match(service, /A different authorized owner must review the refund request/);
+  assert.match(service, /A reason is required when rejecting or failing a refund/);
 });
 
 test("refund API is property scoped and requires refund permission", async () => {
