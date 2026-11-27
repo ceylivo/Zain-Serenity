@@ -23,7 +23,7 @@ export function currencyMinorUnitDigits(currency: string): number {
 export function toMinorUnits(value: number | string, currency: string): number {
   const digits = currencyMinorUnitDigits(currency);
   const raw = typeof value === "number" ? String(value) : value.trim();
-  const match = /^(-?)(\\d+)(?:\\.(\\d+))?$/.exec(raw);
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
   if (!match) throw new RangeError("Money amount must be a plain decimal value.");
   const fraction = match[3] ?? "";
   const significantExtraPrecision = fraction.slice(digits);
