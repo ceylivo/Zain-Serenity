@@ -79,7 +79,8 @@ export function addMoneyObservation(report, collectionName, document, field, val
   const currencyBucket = report.currencies[bucketKey] ??= {
     fields:0, validFields:0, invalidFields:0, byField:{},
   };
-  const fieldBucket = currencyBucket.byField[field] ??= {
+  const fieldKey = `${collectionName}.${field}`;
+  const fieldBucket = currencyBucket.byField[fieldKey] ??= {
     fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0",
   };
   currencyBucket.fields += 1;
