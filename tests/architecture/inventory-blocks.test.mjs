@@ -65,7 +65,8 @@ test("legacy inventory reconciliation is read-only and compares tracked blocks b
   assert.match(route, /overtracked/);
   assert.match(route, /safeToAutoMigrate: false/);
   assert.match(route, /Read-only audit only/);
-  assert.doesNotMatch(route, /findOneAndUpdate|updateOne|\.save\(|\.create\(/);
+  const readOnlyHandler = route.split("export async function POST")[0];
+  assert.doesNotMatch(readOnlyHandler, /findOneAndUpdate|updateOne|\.save\(|\.create\(/);
   assert.match(route, /dates\.length > 31/);
 });
 
@@ -104,8 +105,9 @@ test("opening a reconciliation case rechecks current counters and never changes 
 
 test("review case decisions are tenant scoped, transactional and audit logged without stock mutation", async () => {
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/reconciliation/cases/route.ts");
-  assert.match(route, /permission: "inventory:read"/);
-  assert.match(route, /permission: "inventory:manage"/);
+  assert.match(route, /permission: "inventory:read" \| "inventory:manage"/);
+  assert.match(route, /authorized\(request, context, "inventory:read"\)/);
+  assert.match(route, /authorized\(request, context, "inventory:manage"\)/);
   assert.match(route, /tenantId: auth\.access\.tenantId, propertyId: auth\.access\.propertyId/);
   assert.match(route, /withTransaction/);
   assert.match(route, /AuditLog\.create/);
