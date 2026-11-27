@@ -52,7 +52,6 @@ export default function InventoryWorkspacePage() {
   const [calendarStart, setCalendarStart] = useState(() => localDateKey(new Date()));
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
-  const [blockAction, setBlockAction] = useState<"block" | "unblock">("block");
   const [blockStartDate, setBlockStartDate] = useState(() => localDateKey(new Date()));
   const [blockEndDate, setBlockEndDate] = useState(() => localDateKey(new Date()));
   const [blockQuantity, setBlockQuantity] = useState("1");
@@ -217,7 +216,7 @@ export default function InventoryWorkspacePage() {
       const response = await fetch(`${base}/inventory/blocks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: blockAction, roomTypeId: selectedRoomType, startDate: blockStartDate, endDate: blockEndDate, quantity: Number(blockQuantity), reason: blockReason }),
+        body: JSON.stringify({ action: "block", roomTypeId: selectedRoomType, startDate: blockStartDate, endDate: blockEndDate, quantity: Number(blockQuantity), reason: blockReason }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message || "Unable to adjust room inventory.");
@@ -225,7 +224,7 @@ export default function InventoryWorkspacePage() {
       const availabilityResponse = await fetch(`${base}/inventory/availability?startDate=${calendarStart}&endDate=${endDate}`, { cache: "no-store" });
       const availabilityBody = await availabilityResponse.json() as ApiBody<Availability>;
       if (availabilityResponse.ok) setAvailability(availabilityBody.data ?? null);
-      setNotice(blockAction === "block" ? "Rooms blocked for the selected dates." : "Blocked rooms released for the selected dates.");
+      setNotice("Rooms blocked for the selected dates.");
       setBlockReason("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to adjust room inventory.");
@@ -292,14 +291,13 @@ export default function InventoryWorkspacePage() {
             </form>
           </div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Your role can view inventory, but only a tenant owner or property manager can create inventory items.</div>}
           {canManage && <form onSubmit={(event) => void adjustInventory(event)} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 lg:grid-cols-6">
-            <div className="lg:col-span-6"><h2 className="font-semibold text-slate-950">Block / unblock room inventory</h2><p className="mt-1 text-sm text-slate-500">Adjust sellable room capacity for a date range. Reserved rooms cannot be blocked.</p></div>
-            <label className="text-sm">Action<select className={input} value={blockAction} onChange={(event) => setBlockAction(event.target.value as "block" | "unblock")}><option value="block">Block rooms</option><option value="unblock">Unblock rooms</option></select></label>
+            <div className="lg:col-span-6"><h2 className="font-semibold text-slate-950">Block room inventory</h2><p className="mt-1 text-sm text-slate-500">Create an individually tracked inventory block. Release quantities later against this exact record, with an audit reason.</p></div>
             <label className="text-sm">Room type<select required className={input} value={selectedRoomType} onChange={(event) => setSelectedRoomType(event.target.value)}><option value="">Choose room type</option>{roomTypes.map((room) => <option key={room._id} value={room._id}>{room.name}</option>)}</select></label>
             <label className="text-sm">From<input required type="date" className={input} value={blockStartDate} onChange={(event) => { setBlockStartDate(event.target.value); if (event.target.value > blockEndDate) setBlockEndDate(event.target.value); }}/></label>
             <label className="text-sm">Through<input required type="date" min={blockStartDate} className={input} value={blockEndDate} onChange={(event) => setBlockEndDate(event.target.value)}/></label>
             <label className="text-sm">Rooms<input required type="number" min="1" max="10000" className={input} value={blockQuantity} onChange={(event) => setBlockQuantity(event.target.value)}/></label>
             <label className="text-sm lg:col-span-5">Reason<input required minLength={3} maxLength={300} className={input} value={blockReason} onChange={(event) => setBlockReason(event.target.value)} placeholder="Maintenance, owner use, renovation…"/></label>
-            <div className="flex items-end"><button disabled={saving || !selectedRoomType || !roomTypes.length} className="w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Saving…" : blockAction === "block" ? "Block inventory" : "Release inventory"}</button></div>
+            <div className="flex items-end"><button disabled={saving || !selectedRoomType || !roomTypes.length} className="w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Saving…" : "Block inventory"}</button></div>
           </form>}
           <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
             <div><h2 className="text-lg font-semibold text-slate-950">Inventory block history</h2><p className="text-sm text-slate-500">Review each block and release quantities against its original record. Older quantity-only blocks remain visible in availability counters but are not listed here.</p></div>
