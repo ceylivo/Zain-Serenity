@@ -23,7 +23,7 @@ test("housekeeping task updates validate status and retain actor-attributed tran
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/housekeeping/tasks/[taskId]/route.ts");
   assert.ok(route.includes('permission: "inventory:housekeeping"'));
   assert.ok(route.includes('HousekeepingTask.findOne({ _id: taskId, tenantId: access.tenantId, propertyId: access.propertyId })'));
-  assert.ok(route.includes("task.statusHistory.push"));
+  assert.ok(route.includes("current.statusHistory.push"));
   assert.ok(route.includes("completedAt"));
   assert.ok(route.includes('action: "housekeeping.task.updated"'));
 });
