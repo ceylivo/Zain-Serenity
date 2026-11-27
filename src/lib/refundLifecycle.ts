@@ -84,13 +84,17 @@ export async function requestPaymentRefund(input: {
       if (!payment || !["succeeded", "refunded"].includes(payment.status)) {
         throw new RefundLifecycleError("Only collected or settled payments can be refunded.", "PAYMENT_NOT_FOUND");
       }
-      const prior = await Refund.find({
-        tenantId: input.tenantId, propertyId: input.propertyId,
-        paymentId: payment._id, status: { $in: RESERVED },
-      }).session(session);
-      const reserved = prior.reduce((sum, refund) => sum + cents(refund.amount), 0);
       const amount = cents(input.amount);
-      if (amount <= 0 || reserved + amount > cents(payment.amount)) {
+      const reserve = await Payment.updateOne({
+        _id: payment._id, tenantId: input.tenantId, propertyId: input.propertyId,
+        $expr: {
+          $lte: [
+            { $add: [{ $ifNull: ["$refundReservedAmount", 0] }, amount / 100] },
+            "$amount",
+          ],
+        },
+      }, { $inc: { refundReservedAmount: amount / 100 } }, { session });
+      if (reserve.modifiedCount !== 1) {
         throw new RefundLifecycleError("Requested refunds cannot exceed the payment's remaining refundable amount.", "REFUND_LIMIT_EXCEEDED");
       }
       const [refund] = await Refund.create([{
@@ -151,6 +155,13 @@ export async function transitionPaymentRefund(input: {
         throw new RefundLifecycleError("This refund cannot make that state transition.", "INVALID_REFUND_STATE");
       }
       refund.status = next;
+      if (input.action === "reject" || input.action === "fail") {
+        const released = await Payment.updateOne({
+          _id: refund.paymentId, tenantId: input.tenantId, propertyId: input.propertyId,
+          refundReservedAmount: { $gte: refund.amount },
+        }, { $inc: { refundReservedAmount: -refund.amount } }, { session });
+        if (released.modifiedCount !== 1) throw new RefundLifecycleError("Refund reservation could not be released safely.", "REFUND_OPERATION_FAILED");
+      }
       if (input.action === "approve" || input.action === "reject") {
         refund.reviewedBy = new mongoose.Types.ObjectId(input.actorUserId);
         refund.reviewedAt = new Date();
