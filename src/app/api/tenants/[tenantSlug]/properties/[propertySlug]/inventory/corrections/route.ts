@@ -61,44 +61,68 @@ export async function POST(request: Request, context: Context) {
   }
   await dbConnect();
   const scope = { tenantId: access.tenantId, propertyId: access.propertyId };
-  const existing = await InventoryCorrection.findOne({ ...scope, idempotencyKey }).lean();
-  if (existing) return NextResponse.json({ data: { id: existing._id.toString(), status: existing.status, duplicate: true } });
-  const reviewCase = await InventoryReconciliationCase.findOne({
-    _id: caseId, ...scope, status: "resolved",
-  }).lean();
-  if (!reviewCase) return fail("REVIEW_REQUIRED", "A resolved reconciliation case is required before requesting a correction", 409);
-  const expectedDelta = reviewCase.legacyUntracked > 0
-    ? -reviewCase.legacyUntracked
-    : reviewCase.overtracked > 0 ? reviewCase.overtracked : 0;
-  if (expectedDelta === 0 || Number(delta) !== expectedDelta) {
-    return fail("CORRECTION_OUT_OF_SCOPE", "Correction must exactly reconcile the discrepancy recorded in the reviewed case", 422);
+  const sessionDb = await mongoose.startSession();
+  try {
+    let response: Record<string, unknown> | null = null;
+    let created = false;
+    await sessionDb.withTransaction(async () => {
+      const existing = await InventoryCorrection.findOne({ ...scope, idempotencyKey }).session(sessionDb);
+      if (existing) {
+        response = { id: existing._id.toString(), status: existing.status, duplicate: true };
+        return;
+      }
+      const reviewCase = await InventoryReconciliationCase.findOne({
+        _id: caseId, ...scope, status: "resolved",
+      }).session(sessionDb);
+      if (!reviewCase) throw new Error("REVIEW_REQUIRED");
+      const expectedDelta = reviewCase.legacyUntracked > 0
+        ? -reviewCase.legacyUntracked
+        : reviewCase.overtracked > 0 ? reviewCase.overtracked : 0;
+      if (expectedDelta === 0 || Number(delta) !== expectedDelta) throw new Error("CORRECTION_OUT_OF_SCOPE");
+      const day = await InventoryDay.findOne({
+        ...scope, roomTypeId: reviewCase.roomTypeId, date: reviewCase.date,
+      }).select("blockedRooms availableRooms").session(sessionDb).lean();
+      if (!day || day.blockedRooms !== reviewCase.inventoryBlocked) throw new Error("SNAPSHOT_STALE");
+      const trackedBlocks = await InventoryBlock.find({
+        ...scope, roomTypeId: reviewCase.roomTypeId,
+        status: { $in: ["active", "partially_released"] },
+        startDate: { $lte: reviewCase.date }, endDate: { $gte: reviewCase.date }, remainingQuantity: { $gt: 0 },
+      }).select("remainingQuantity").session(sessionDb).lean();
+      const trackedBlocked = trackedBlocks.reduce((sum, item) => sum + item.remainingQuantity, 0);
+      if (trackedBlocked !== reviewCase.trackedBlocked) throw new Error("SNAPSHOT_STALE");
+      const [correction] = await InventoryCorrection.create([{
+        ...scope, roomTypeId: reviewCase.roomTypeId, reconciliationCaseId: reviewCase._id,
+        date: reviewCase.date, idempotencyKey, deltaBlockedRooms: Number(delta),
+        beforeBlockedRooms: day.blockedRooms, beforeAvailableRooms: day.availableRooms,
+        reason, status: "pending", requestedBy: new mongoose.Types.ObjectId(session.user.id),
+      }], { session: sessionDb });
+      await AuditLog.create([{
+        ...scope, actorUserId: new mongoose.Types.ObjectId(session.user.id),
+        action: "inventory.correction.requested", resourceType: "inventory_correction",
+        resourceId: correction._id.toString(), outcome: "success",
+        metadata: { reconciliationCaseId: caseId, deltaBlockedRooms: Number(delta), inventoryChanged: false },
+      }], { session: sessionDb });
+      created = true;
+      response = { id: correction._id.toString(), status: correction.status, inventoryChanged: false };
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
+    return NextResponse.json({ data: response }, { status: created ? 201 : 200 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "REVIEW_REQUIRED") return fail("REVIEW_REQUIRED", "A resolved reconciliation case is required before requesting a correction", 409);
+    if (message === "CORRECTION_OUT_OF_SCOPE") return fail("CORRECTION_OUT_OF_SCOPE", "Correction must exactly reconcile the discrepancy recorded in the reviewed case", 422);
+    if (message === "SNAPSHOT_STALE") return fail("SNAPSHOT_STALE", "Inventory no longer matches the reviewed snapshot. Run reconciliation again.", 409);
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
+      const duplicate = await InventoryCorrection.findOne({ ...scope, idempotencyKey }).lean();
+      if (duplicate) return NextResponse.json({ data: { id: duplicate._id.toString(), status: duplicate.status, duplicate: true } });
+    }
+    if (/Transaction numbers are only allowed|replica set|mongos|does not support transactions/i.test(message)) {
+      return fail("TRANSACTION_UNAVAILABLE", "Inventory correction requests require MongoDB transaction support", 503);
+    }
+    console.error("Inventory correction request failed", error);
+    return fail("CORRECTION_REQUEST_FAILED", "Unable to create this correction request", 500);
+  } finally {
+    await sessionDb.endSession();
   }
-  const day = await InventoryDay.findOne({
-    ...scope, roomTypeId: reviewCase.roomTypeId, date: reviewCase.date,
-  }).select("blockedRooms availableRooms").lean();
-  if (!day || day.blockedRooms !== reviewCase.inventoryBlocked) {
-    return fail("SNAPSHOT_STALE", "Inventory no longer matches the reviewed snapshot. Run reconciliation again.", 409);
-  }
-  const trackedBlocks = await InventoryBlock.find({
-    ...scope, roomTypeId: reviewCase.roomTypeId,
-    status: { $in: ["active", "partially_released"] },
-    startDate: { $lte: reviewCase.date }, endDate: { $gte: reviewCase.date }, remainingQuantity: { $gt: 0 },
-  }).select("remainingQuantity").lean();
-  const trackedBlocked = trackedBlocks.reduce((sum, item) => sum + item.remainingQuantity, 0);
-  if (trackedBlocked !== reviewCase.trackedBlocked) return fail("SNAPSHOT_STALE", "Tracked block history changed after review. Run reconciliation again.", 409);
-  const correction = await InventoryCorrection.create({
-    ...scope, roomTypeId: reviewCase.roomTypeId, reconciliationCaseId: reviewCase._id,
-    date: reviewCase.date, idempotencyKey, deltaBlockedRooms: Number(delta),
-    beforeBlockedRooms: day.blockedRooms, beforeAvailableRooms: day.availableRooms,
-    reason, status: "pending", requestedBy: new mongoose.Types.ObjectId(session.user.id),
-  });
-  await AuditLog.create({
-    ...scope, actorUserId: new mongoose.Types.ObjectId(session.user.id),
-    action: "inventory.correction.requested", resourceType: "inventory_correction",
-    resourceId: correction._id.toString(), outcome: "success",
-    metadata: { reconciliationCaseId: caseId, deltaBlockedRooms: Number(delta), inventoryChanged: false },
-  });
-  return NextResponse.json({ data: { id: correction._id.toString(), status: correction.status, inventoryChanged: false } }, { status: 201 });
 }
 
 /** Only a tenant owner can approve/reject; approval applies the correction atomically. */
