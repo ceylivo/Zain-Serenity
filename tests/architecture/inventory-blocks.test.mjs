@@ -81,3 +81,43 @@ test("legacy inventory audit workspace is linked and clearly read-only", async (
   assert.match(nav, /\/workspace\/inventory-reconciliation/);
   assert.match(packageJson, /src\/app\/workspace\/inventory-reconciliation\/page\.tsx/);
 });
+
+
+test("inventory reconciliation review cases retain immutable evidence and actor history", async () => {
+  const model = await read("../../src/models/InventoryReconciliationCase.ts");
+  for (const field of ["tenantId", "propertyId", "roomTypeId", "date", "inventoryBlocked", "trackedBlocked", "legacyUntracked", "overtracked", "snapshotKey", "reason", "createdBy"]) {
+    assert.match(model, new RegExp(field));
+  }
+  assert.match(model, /immutable: true/);
+  assert.match(model, /unique: true/);
+  assert.match(model, /"open", "resolved", "dismissed"/);
+});
+
+test("opening a reconciliation case rechecks current counters and never changes inventory", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/reconciliation/route.ts");
+  assert.match(route, /permission: "inventory:manage"/);
+  assert.match(route, /DISCREPANCY_NO_LONGER_EXISTS/);
+  assert.match(route, /snapshotKey/);
+  assert.match(route, /InventoryReconciliationCase\.findOneAndUpdate/);
+  assert.doesNotMatch(route, /InventoryDay\.findOneAndUpdate|InventoryDay\.updateOne|\.save\(/);
+});
+
+test("review case decisions are tenant scoped, transactional and audit logged without stock mutation", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/reconciliation/cases/route.ts");
+  assert.match(route, /permission: "inventory:read"/);
+  assert.match(route, /permission: "inventory:manage"/);
+  assert.match(route, /tenantId: auth\.access\.tenantId, propertyId: auth\.access\.propertyId/);
+  assert.match(route, /withTransaction/);
+  assert.match(route, /AuditLog\.create/);
+  assert.match(route, /inventoryChanged: false/);
+  assert.match(route, /CASE_NOT_OPEN_OR_NOT_FOUND/);
+  assert.doesNotMatch(route, /InventoryDay\.findOneAndUpdate|InventoryDay\.updateOne/);
+});
+
+test("inventory reconciliation workspace can open and close auditable review cases", async () => {
+  const page = await read("../../src/app/workspace/inventory-reconciliation/page.tsx");
+  assert.match(page, /openReviewCase/);
+  assert.match(page, /closeReviewCase/);
+  assert.match(page, /resolutionNote/);
+  assert.match(page, /No inventory quantities were changed|does not change inventory/i);
+});
