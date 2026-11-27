@@ -12,6 +12,7 @@ type Discrepancy = {
   inventoryBlocked: number; trackedBlocked: number; legacyUntracked: number;
   overtracked: number; inventoryDayMissing: boolean;
 };
+type ReviewCase = { id: string; roomTypeId: string; date: string; legacyUntracked: number; overtracked: number; reason: string; status: "open" | "resolved" | "dismissed"; createdAt: string; resolutionNote?: string | null };
 type Report = {
   period: { from: string; to: string };
   summary: { datesChecked: number; discrepancies: number; legacyUntrackedUnits: number; overtrackedUnits: number; missingInventoryDays: number };
@@ -39,6 +40,10 @@ export default function InventoryReconciliationPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [reviewCases, setReviewCases] = useState<ReviewCase[]>([]);
+  const [reviewReasons, setReviewReasons] = useState<Record<string, string>>({});
+  const [resolutionNotes, setResolutionNotes] = useState<Record<string, string>>({});
+  const [reviewBusy, setReviewBusy] = useState("");
   const canRead = memberships.some((item) => item.tenant.slug === tenant && ["tenant_owner", "property_manager", "booking_manager", "receptionist", "housekeeping"].includes(item.role));
 
   useEffect(() => {
@@ -74,6 +79,47 @@ export default function InventoryReconciliationPage() {
     return () => { active = false; };
   }, [tenant]);
 
+  const loadReviewCases = async () => {
+    if (!tenant || !property) return;
+    const response = await fetch(`/api/tenants/${encodeURIComponent(tenant)}/properties/${encodeURIComponent(property)}/inventory/blocks/reconciliation/cases`, { cache: "no-store" });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error?.message || "Unable to load review cases.");
+    setReviewCases(Array.isArray(body.data) ? body.data as ReviewCase[] : []);
+  };
+
+  const openReviewCase = async (item: Discrepancy) => {
+    const key = item.roomTypeId + ":" + item.date;
+    const reason = reviewReasons[key]?.trim();
+    if (!reason || reason.length < 3) { setError("Please provide a review reason of at least 3 characters."); return; }
+    setReviewBusy(key); setError("");
+    try {
+      const response = await fetch(`/api/tenants/${encodeURIComponent(tenant)}/properties/${encodeURIComponent(property)}/inventory/blocks/reconciliation`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomTypeId: item.roomTypeId, date: item.date, reason }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error?.message || "Unable to open review case.");
+      await loadReviewCases();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to open review case."); }
+    finally { setReviewBusy(""); }
+  };
+
+  const closeReviewCase = async (item: ReviewCase, status: "resolved" | "dismissed") => {
+    const note = resolutionNotes[item.id]?.trim();
+    if (!note || note.length < 3) { setError("Please enter a resolution note of at least 3 characters."); return; }
+    setReviewBusy(item.id); setError("");
+    try {
+      const response = await fetch(`/api/tenants/${encodeURIComponent(tenant)}/properties/${encodeURIComponent(property)}/inventory/blocks/reconciliation/cases`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId: item.id, status, resolutionNote: note }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error?.message || "Unable to update review case.");
+      await loadReviewCases();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to update review case."); }
+    finally { setReviewBusy(""); }
+  };
+
   const runAudit = async () => {
     if (!tenant || !property) return;
     setLoading(true); setError(""); setReport(null);
@@ -83,6 +129,7 @@ export default function InventoryReconciliationPage() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error?.message || "Inventory reconciliation failed.");
       setReport(body.data as Report);
+      await loadReviewCases();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Inventory reconciliation failed."); }
     finally { setLoading(false); }
   };
@@ -112,8 +159,9 @@ export default function InventoryReconciliationPage() {
       </section>
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex items-center gap-2 border-b border-slate-100 p-4"><ClipboardCheck size={18}/><h2 className="font-semibold text-slate-900">Daily discrepancies</h2></div>
-        {report.discrepancies.length === 0 ? <p className="p-6 text-sm text-emerald-800">No counter differences were found for this date range.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{["Room type","Date","Counter blocked","Tracked blocks","Legacy untracked","Overtracked"].map((label) => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead><tbody>{report.discrepancies.map((item) => <tr key={item.roomTypeId + item.date} className="border-t border-slate-100"><td className="px-4 py-3 font-medium text-slate-900">{item.roomTypeName}</td><td className="px-4 py-3 tabular-nums">{item.date}</td><td className="px-4 py-3 tabular-nums">{item.inventoryBlocked}{item.inventoryDayMissing ? " (missing day)" : ""}</td><td className="px-4 py-3 tabular-nums">{item.trackedBlocked}</td><td className="px-4 py-3 font-semibold text-amber-700 tabular-nums">{item.legacyUntracked}</td><td className="px-4 py-3 font-semibold text-rose-700 tabular-nums">{item.overtracked}</td></tr>)}</tbody></table></div>}
+        {report.discrepancies.length === 0 ? <p className="p-6 text-sm text-emerald-800">No counter differences were found for this date range.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{["Room type","Date","Counter blocked","Tracked blocks","Legacy untracked","Overtracked","Review"].map((label) => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead><tbody>{report.discrepancies.map((item) => <tr key={item.roomTypeId + item.date} className="border-t border-slate-100"><td className="px-4 py-3 font-medium text-slate-900">{item.roomTypeName}</td><td className="px-4 py-3 tabular-nums">{item.date}</td><td className="px-4 py-3 tabular-nums">{item.inventoryBlocked}{item.inventoryDayMissing ? " (missing day)" : ""}</td><td className="px-4 py-3 tabular-nums">{item.trackedBlocked}</td><td className="px-4 py-3 font-semibold text-amber-700 tabular-nums">{item.legacyUntracked}</td><td className="px-4 py-3 font-semibold text-rose-700 tabular-nums">{item.overtracked}</td><td className="px-4 py-3"><div className="flex min-w-64 gap-2"><input aria-label="Review reason" value={reviewReasons[item.roomTypeId + ":" + item.date] ?? ""} onChange={(event) => setReviewReasons((current) => ({ ...current, [item.roomTypeId + ":" + item.date]: event.target.value }))} placeholder="Why does this need review?" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-2"/><button disabled={!!reviewBusy} onClick={() => void openReviewCase(item)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{reviewBusy === item.roomTypeId + ":" + item.date ? "Saving…" : "Open case"}</button></div></td></tr>)}</tbody></table></div>}
       </section>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div className="border-b border-slate-100 p-4"><h2 className="font-semibold text-slate-900">Review cases</h2><p className="mt-1 text-xs text-slate-500">Closing a case records a decision only; it does not change inventory.</p></div>{reviewCases.length === 0 ? <p className="p-5 text-sm text-slate-500">No review cases recorded for this property yet.</p> : <div className="divide-y divide-slate-100">{reviewCases.map((item) => <div key={item.id} className="space-y-2 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.date} · {item.legacyUntracked} legacy / {item.overtracked} overtracked</p><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium capitalize text-slate-700">{item.status}</span></div><p className="text-sm text-slate-600">{item.reason}</p>{item.status === "open" && <div className="flex flex-wrap gap-2"><input aria-label="Resolution note" value={resolutionNotes[item.id] ?? ""} onChange={(event) => setResolutionNotes((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Decision / evidence note" className="min-w-56 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"/><button disabled={!!reviewBusy} onClick={() => void closeReviewCase(item, "resolved")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Resolve</button><button disabled={!!reviewBusy} onClick={() => void closeReviewCase(item, "dismissed")} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">Dismiss</button></div>}{item.resolutionNote && <p className="text-xs text-slate-500">Decision: {item.resolutionNote}</p>}</div>)}</div>}</section>
       <p className="text-xs text-slate-500">{report.message}</p>
     </>}
   </div>;
