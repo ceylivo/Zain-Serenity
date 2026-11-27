@@ -37,7 +37,7 @@ const daysAgo = (days: number) => {
 };
 
 export default function InventoryReconciliationPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -240,7 +240,7 @@ export default function InventoryReconciliationPage() {
           <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.date} · blocked rooms {item.beforeBlockedRooms} → {item.afterBlockedRooms ?? "pending"}</p><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold capitalize text-slate-700">{item.status}</span></div>
           <p className="text-sm text-slate-600">{item.reason} · adjustment {item.deltaBlockedRooms > 0 ? "+" : ""}{item.deltaBlockedRooms}</p>
           {item.approvalNote && <p className="text-xs text-slate-500">Decision note: {item.approvalNote}</p>}
-          {item.status === "pending" && canManage && <div className="flex flex-wrap gap-2"><input aria-label="Correction approval note" value={correctionNotes[item.id] ?? ""} onChange={(event) => setCorrectionNotes((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Independent review note" className="min-w-56 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"/><button disabled={!!correctionBusy} onClick={() => void decideCorrection(item, "approve")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Approve & apply</button><button disabled={!!correctionBusy} onClick={() => void decideCorrection(item, "reject")} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">Reject</button></div>}
+          {item.status === "pending" && canManage && item.requestedBy !== session?.user?.id && <div className="flex flex-wrap gap-2"><input aria-label="Correction approval note" value={correctionNotes[item.id] ?? ""} onChange={(event) => setCorrectionNotes((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Independent review note" className="min-w-56 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"/><button disabled={!!correctionBusy} onClick={() => void decideCorrection(item, "approve")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Approve & apply</button><button disabled={!!correctionBusy} onClick={() => void decideCorrection(item, "reject")} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">Reject</button></div>}
           {item.status === "applied" && !item.reversalOf && canManage && <div className="flex flex-wrap gap-2"><input aria-label="Reversal reason" value={correctionReasons[item.id] ?? ""} onChange={(event) => setCorrectionReasons((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Reason for reversal" className="min-w-56 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"/><button disabled={!!correctionBusy} onClick={() => { const reviewCase = reviewCases.find((entry) => entry.id === item.reconciliationCaseId); if (reviewCase) void requestCorrection(reviewCase, item); }} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800 disabled:opacity-50">Request reversal</button></div>}
         </div>)}</div>}
       </section>
