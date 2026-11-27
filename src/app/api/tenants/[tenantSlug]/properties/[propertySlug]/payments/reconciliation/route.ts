@@ -103,21 +103,24 @@ export async function GET(request: Request, context: Context) {
         as: "refunds",
       } },
       { $addFields: {
-        paidByCurrency: { $reduce: {
-          input: "$payments", initialValue: {},
-          in: { $mergeObjects: ["$$value", { $arrayToObject: [[{ k: "$$this.currency", v: { $add: [
-            { $ifNull: [{ $getField: { field: "$$this.currency", input: "$$value" } }, 0] },
-            "$$this.amount",
-          ] } }]] }] },
-        } },
+        paidAmount: { $sum: { $map: {
+          input: "$payments", as: "payment",
+          in: { $cond: [{ $eq: ["$$payment.currency", { $ifNull: ["$currency", "PKR"] }] }, "$$payment.amount", 0] },
+        } } },
+        refundedAmount: { $sum: { $map: {
+          input: "$refunds", as: "refund",
+          in: { $cond: [{ $eq: ["$$refund.currency", { $ifNull: ["$currency", "PKR"] }] }, "$$refund.amount", 0] },
+        } } },
       } },
-      { $project: {
-        currency: { $ifNull: ["$currency", "PKR"] },
-        totalPrice: 1,
-        payments: 1,
-        refunds: 1,
+      { $addFields: {
+        outstandingAmount: { $max: [0, { $subtract: { $add: ["$totalPrice", "$refundedAmount"] }, "$paidAmount" }] },
       } },
-      { $limit: 10000 },
+      { $match: { outstandingAmount: { $gt: 0 } } },
+      { $group: {
+        _id: { $ifNull: ["$currency", "PKR"] },
+        amount: { $sum: "$outstandingAmount" },
+        bookings: { $sum: 1 },
+      } },
     ]),
   ]);
 
@@ -143,21 +146,10 @@ export async function GET(request: Request, context: Context) {
     }];
   }));
 
-  const outstandingByCurrency: Record<string, { amount: number; bookings: number }> = {};
-  for (const booking of outstanding) {
-    const currency = booking.currency || "PKR";
-    const paid = (booking.payments ?? []).filter((p: { currency: string }) => p.currency === currency)
-      .reduce((sum: number, p: { amount: number }) => sum + p.amount, 0);
-    const refunded = (booking.refunds ?? []).filter((r: { currency: string }) => r.currency === currency)
-      .reduce((sum: number, r: { amount: number }) => sum + r.amount, 0);
-    const due = Math.max(0, booking.totalPrice - paid + refunded);
-    if (due > 0) {
-      outstandingByCurrency[currency] ??= { amount: 0, bookings: 0 };
-      outstandingByCurrency[currency].amount += due;
-      outstandingByCurrency[currency].bookings += 1;
-    }
-  }
-  for (const item of Object.values(outstandingByCurrency)) item.amount = Math.round(item.amount * 100) / 100;
+  const outstandingByCurrency = Object.fromEntries(outstanding.map((row) => [row._id, {
+    amount: Math.round(row.amount * 100) / 100,
+    bookings: row.bookings,
+  }]));
 
   return NextResponse.json({
     data: {
