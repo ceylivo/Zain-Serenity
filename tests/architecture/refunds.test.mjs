@@ -23,9 +23,11 @@ test("refund requests reserve the refundable amount atomically and enforce idemp
   const payment = await read("../../src/models/Payment.ts");
   assert.match(payment, /refundReservedAmount: \{ type: Number/);
   assert.match(service, /Payment\.updateOne\([\s\S]*?\$expr:[\s\S]*?\$ifNull: \["\$refundReservedAmount", 0\]/);
-  assert.match(service, /\$inc: \{ refundReservedAmount: amount \/ 100 \}/);
+  assert.match(service, /\$inc: \{ refundReservedAmount: amountMajor \}/);
   assert.match(service, /IDEMPOTENCY_CONFLICT/);
   assert.match(service, /REFUND_LIMIT_EXCEEDED/);
+  assert.match(service, /toMinorUnits/);
+  assert.match(service, /fromMinorUnits/);
   assert.match(service, /toMinorUnits/);
   assert.match(service, /fromMinorUnits/);
 });
