@@ -25,6 +25,7 @@ test("booking, payment and refund calculations share currency-aware minor-unit h
   const payment = await read("../../src/lib/paymentLifecycle.ts");
   const refund = await read("../../src/lib/refundLifecycle.ts");
   const reconciliation = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/payments/reconciliation/route.ts");
+  const ratePlans = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/rate-plans/route.ts");
   assert.match(booking, /toMinorUnits\(rate\.nightlyRate, rate\.currency\)/);
   assert.match(booking, /fromMinorUnits\(subtotalMinor \+ taxMinor, rate\.currency\)/);
   assert.match(payment, /normalizeMoney\(booking\.totalPrice, currency\)/);
@@ -33,4 +34,6 @@ test("booking, payment and refund calculations share currency-aware minor-unit h
   assert.match(refund, /fromMinorUnits/);
   assert.match(reconciliation, /toMinorUnits\(collected, currency\)/);
   assert.match(reconciliation, /fromMinorUnits\(netMinor, currency\)/);
+  assert.match(ratePlans, /normalizeMoney\(nightlyRate, currency\)/);
+  assert.match(ratePlans, /INVALID_CURRENCY_PRECISION/);
 });
