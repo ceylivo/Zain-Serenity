@@ -2,26 +2,38 @@
  * Currency-aware money helpers.
  *
  * Persisted legacy records remain major-unit numbers for compatibility, while
- * calculations are performed using integer minor units. Currency precision is
- * derived from the ISO currency metadata provided by Intl.
+ * calculations are performed using integer minor units. ISO 4217 uses two
+ * minor-unit digits for most currencies; the explicit exception table below
+ * avoids runtime ICU data inconsistencies for zero-, three- and four-digit
+ * currencies.
  */
+
+const CURRENCY_MINOR_UNIT_OVERRIDES: Readonly<Record<string, number>> = {
+  // Zero-decimal currencies.
+  BIF: 0, CLP: 0, DJF: 0, GNF: 0, ISK: 0, JPY: 0,
+  KMF: 0, KRW: 0, PYG: 0, RWF: 0, UGX: 0, UYI: 0,
+  VND: 0, VUV: 0, XAF: 0, XOF: 0, XPF: 0,
+
+  // Three-decimal currencies.
+  BHD: 3, IQD: 3, JOD: 3, KWD: 3, LYD: 3, OMR: 3, TND: 3,
+
+  // Four-decimal accounting units.
+  CLF: 4, UYW: 4,
+};
+
 export function currencyMinorUnitDigits(currency: string): number {
   const normalized = currency.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(normalized)) {
     throw new RangeError("Currency must be a three-letter ISO 4217 code.");
   }
   try {
-    const digits = new Intl.NumberFormat("en", {
-      style: "currency",
-      currency: normalized,
-    }).resolvedOptions().maximumFractionDigits;
-    if (typeof digits !== "number") {
-      throw new RangeError(`Currency precision is unavailable for ${normalized}.`);
-    }
-    return digits;
+    // Validate that the runtime recognizes the currency code, but do not use
+    // ICU's default fraction digits as the source of truth for ISO precision.
+    new Intl.NumberFormat("en", { style: "currency", currency: normalized });
   } catch {
     throw new RangeError(`Unsupported currency code: ${normalized}`);
   }
+  return CURRENCY_MINOR_UNIT_OVERRIDES[normalized] ?? 2;
 }
 
 export function toMinorUnits(value: number | string, currency: string): number {
@@ -38,7 +50,7 @@ export function toMinorUnits(value: number | string, currency: string): number {
     return rounded;
   }
   const raw = value.trim();
-  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
+  const match = /^(-?)(\\d+)(?:\\.(\\d+))?$/.exec(raw);
   if (!match) throw new RangeError("Money amount must be a plain decimal value.");
   const fraction = match[3] ?? "";
   const significantExtraPrecision = fraction.slice(digits);
