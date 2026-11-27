@@ -72,7 +72,7 @@ export async function GET(request: Request, context: Context) {
       { $match: {
         tenantId: access.tenantId, propertyId: access.propertyId,
         status: { $nin: ["cancelled", "no_show"] },
-        paymentStatus: { $in: ["unpaid", "pending", "partially_paid", "partially_refunded"] },
+        paymentStatus: { $in: ["unpaid", "pending", "partially_paid", "partially_refunded", "refunded"] },
       } },
       { $lookup: {
         from: Payment.collection.name,
