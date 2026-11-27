@@ -4,6 +4,7 @@ import dbConnect from "@/lib/dbConnect";
 import Booking from "@/models/Booking";
 import Payment, { type PaymentMethod } from "@/models/Payment";
 import AuditLog from "@/models/AuditLog";
+import { normalizeMoney, toMinorUnits } from "@/lib/money";
 
 export class PaymentLifecycleError extends Error {
   constructor(message: string, public readonly code:
@@ -61,7 +62,10 @@ export async function createPaymentAttempt(input: {
       if (booking.paymentStatus === "paid" || booking.paymentStatus === "partially_paid" || booking.paymentStatus === "partially_refunded") {
         throw new PaymentLifecycleError("This booking is already paid or requires a refund workflow.", "PAYMENT_ALREADY_SETTLED");
       }
-      const amount = Math.round(booking.totalPrice * 100) / 100;
+      const currency = booking.currency || "PKR";
+      let amount: number;
+      try { amount = normalizeMoney(booking.totalPrice, currency); }
+      catch { throw new PaymentLifecycleError("Booking amount or currency precision is invalid.", "PAYMENT_AMOUNT_INVALID"); }
       if (!Number.isFinite(amount) || amount <= 0) throw new PaymentLifecycleError("Booking amount is invalid.", "PAYMENT_AMOUNT_INVALID");
 
       const activeAttempt = await Payment.findOne({
@@ -73,7 +77,7 @@ export async function createPaymentAttempt(input: {
       const [payment] = await Payment.create([{
         tenantId: input.tenantId, propertyId: input.propertyId, bookingId: booking._id,
         userId: new mongoose.Types.ObjectId(input.userId), method: input.method,
-        status: "pending", isActive: true, amount, currency: booking.currency || "PKR",
+        status: "pending", isActive: true, amount, currency,
         idempotencyKey: input.idempotencyKey,
       }], { session });
       booking.paymentStatus = "pending";
@@ -170,8 +174,12 @@ async function settlePayment(input: {
           tenantId: input.tenantId, propertyId: input.propertyId,
           bookingId: booking._id, status: "succeeded",
         }).session(session);
-        const paidAmount = successful.reduce((sum, item) => sum + item.amount, 0);
-        booking.paymentStatus = paidAmount >= booking.totalPrice ? "paid" : "partially_paid";
+        const bookingCurrency = booking.currency || "PKR";
+        if (successful.some((item) => item.currency !== bookingCurrency)) {
+          throw new PaymentLifecycleError("Payments for a booking must use its original currency.", "PAYMENT_AMOUNT_INVALID");
+        }
+        const paidMinor = successful.reduce((sum, item) => sum + toMinorUnits(item.amount, item.currency), 0);
+        booking.paymentStatus = paidMinor >= toMinorUnits(booking.totalPrice, bookingCurrency) ? "paid" : "partially_paid";
       } else {
         const otherPending = await Payment.exists({
           _id: { $ne: payment._id }, tenantId: input.tenantId, propertyId: input.propertyId,
