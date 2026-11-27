@@ -87,7 +87,7 @@ export default function RefundsPage() {
     finally { setBusy(""); }
   }, [tenant, property]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (tenant && property) void Promise.resolve().then(load); }, [load, tenant, property]);
 
   const createRefund = async (payment: Payment) => {
     const amount = Number(amounts[payment._id]);
