@@ -60,6 +60,10 @@ InventoryCorrectionSchema.index(
   { tenantId: 1, propertyId: 1, reconciliationCaseId: 1, status: 1 }
 );
 InventoryCorrectionSchema.index(
+  { tenantId: 1, propertyId: 1, reversalOf: 1 },
+  { unique: true, partialFilterExpression: { reversalOf: { $exists: true } } }
+);
+InventoryCorrectionSchema.index(
   { tenantId: 1, propertyId: 1, roomTypeId: 1, date: 1, createdAt: -1 }
 );
 
