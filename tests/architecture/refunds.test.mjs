@@ -53,3 +53,25 @@ test("only tenant owners can request and approve refunds by default", async () =
   const manager = permissions.split("property_manager:")[1].split("booking_manager:")[0];
   assert.doesNotMatch(manager, /payment:refund/);
 });
+
+test("refund route binds every lifecycle action to the payment in its URL", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/payments/[paymentId]/refunds/route.ts");
+  const service = await read("../../src/lib/refundLifecycle.ts");
+  assert.match(route, /readString\(body\.action, \{ min: 4, max: 10 \}\)/);
+  assert.match(route, /paymentId, tenantId: access\.tenantId/);
+  assert.match(route, /refundId, paymentId,/);
+  assert.match(service, /_id: input\.refundId, paymentId: input\.paymentId/);
+});
+
+test("reconciliation is tenant-scoped, currency-separated and based on settled ledger entries", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/payments/reconciliation/route.ts");
+  assert.match(route, /permission: "report:read"/);
+  assert.match(route, /status: \{ \$in: \["succeeded", "refunded"\] \}/);
+  assert.match(route, /status: \{ \$in: \["requested", "approved", "processing", "completed"\] \}/);
+  assert.match(route, /completedRefunds: refund/);
+  assert.match(route, /netCollected:/);
+  assert.match(route, /outstandingBalances:/);
+  assert.match(route, /never converted/);
+  assert.match(route, /maximum range of 366 days/);
+  assert.doesNotMatch(route, /\$limit: 10000/);
+});
