@@ -75,3 +75,28 @@ test("reconciliation is tenant-scoped, currency-separated and based on settled l
   assert.match(route, /maximum range of 366 days/);
   assert.doesNotMatch(route, /\$limit: 10000/);
 });
+
+test("refund workspace is linked, role-aware and records external settlement evidence", async () => {
+  const page = await read("../../src/app/workspace/refunds/page.tsx");
+  const nav = await read("../../src/components/WorkspaceShell.tsx");
+  const packageJson = await read("../../package.json");
+  assert.match(page, /tenant_owner/);
+  assert.match(page, /Idempotency-Key/);
+  assert.match(page, /Record settlement complete/);
+  assert.match(page, /externalReference/);
+  assert.match(page, /No money is transferred by this screen/);
+  assert.match(nav, /\/workspace\/refunds/);
+  assert.match(nav, /\/workspace\/reconciliation/);
+  assert.match(packageJson, /src\/app\/workspace\/refunds\/page\.tsx/);
+  assert.match(packageJson, /src\/app\/workspace\/reconciliation\/page\.tsx/);
+});
+
+test("reconciliation workspace presents currency-separated ledger totals and current balances", async () => {
+  const page = await read("../../src/app/workspace/reconciliation/page.tsx");
+  assert.match(page, /grossCollected/);
+  assert.match(page, /netCollected/);
+  assert.match(page, /completedRefunds/);
+  assert.match(page, /pendingRefunds/);
+  assert.match(page, /outstandingBalances/);
+  assert.match(page, /Financial reporting access/);
+});
