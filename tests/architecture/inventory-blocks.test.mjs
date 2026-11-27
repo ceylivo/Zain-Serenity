@@ -96,7 +96,7 @@ test("inventory reconciliation review cases retain immutable evidence and actor 
 
 test("opening a reconciliation case rechecks current counters and never changes inventory", async () => {
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/reconciliation/route.ts");
-  assert.match(route, /permission: "inventory:manage"/);
+  assert.match(route, /authorize\(context, session\.user\.id, "inventory:manage"\)/);
   assert.match(route, /DISCREPANCY_NO_LONGER_EXISTS/);
   assert.match(route, /snapshotKey/);
   assert.match(route, /sessionDb\.withTransaction/);
@@ -147,7 +147,7 @@ test("inventory correction ledger is tenant-scoped, idempotent and preserves imm
   assert.match(model, /"pending", "applied", "rejected", "reversed"/);
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/corrections/route.ts");
   assert.match(route, /permission: "inventory:manage"/);
-  assert.match(route, /permission: "inventory:correct_approve"/);
+  assert.match(route, /authorize\(context, session\.user\.id, "inventory:correct_approve"\)/);
   assert.match(route, /INDEPENDENT_APPROVAL_REQUIRED/);
   assert.match(route, /CORRECTION_SNAPSHOT_STALE/);
   assert.match(route, /CORRECTION_WOULD_OVERDRAW/);
