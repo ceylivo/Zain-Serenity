@@ -25,7 +25,7 @@ function decimalParts(value) {
     return { valid:false, reason:"unsupported_type" };
   }
   const raw = String(value).trim();
-  const match = /^(-?)(\\d+)(?:\\.(\\d+))?$/.exec(raw);
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
   if (!match) return { valid:false, reason:"malformed_decimal" };
   return { valid:true, negative:match[1] === "-", whole:match[2], fraction:match[3] ?? "", raw };
 }
