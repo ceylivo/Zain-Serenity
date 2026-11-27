@@ -113,6 +113,9 @@ test("review case decisions are tenant scoped, transactional and audit logged wi
   assert.match(route, /AuditLog\.create/);
   assert.match(route, /inventoryChanged: false/);
   assert.match(route, /CASE_NOT_OPEN_OR_NOT_FOUND/);
+  assert.match(route, /CASE_CREATOR_CANNOT_REVIEW/);
+  assert.match(route, /INDEPENDENT_REVIEW_REQUIRED/);
+  assert.match(route, /existingCase\.createdBy\.toString\(\) === auth\.session\.user\.id/);
   assert.doesNotMatch(route, /InventoryDay\.findOneAndUpdate|InventoryDay\.updateOne/);
 });
 
