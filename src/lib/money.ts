@@ -11,10 +11,14 @@ export function currencyMinorUnitDigits(currency: string): number {
     throw new RangeError("Currency must be a three-letter ISO 4217 code.");
   }
   try {
-    return new Intl.NumberFormat("en", {
+    const digits = new Intl.NumberFormat("en", {
       style: "currency",
       currency: normalized,
     }).resolvedOptions().maximumFractionDigits;
+    if (typeof digits !== "number") {
+      throw new RangeError(`Currency precision is unavailable for ${normalized}.`);
+    }
+    return digits;
   } catch {
     throw new RangeError(`Unsupported currency code: ${normalized}`);
   }
@@ -64,7 +68,7 @@ export function normalizeMoney(value: number | string, currency: string): number
 }
 
 export function sumMinorUnits(values: Array<number | string>, currency: string): number {
-  const total = values.reduce((sum, value) => {
+  const total = values.reduce<number>((sum, value) => {
     const next = sum + toMinorUnits(value, currency);
     if (!Number.isSafeInteger(next)) throw new RangeError("Money total exceeds the safe calculation range.");
     return next;
