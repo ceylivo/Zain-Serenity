@@ -678,7 +678,7 @@ The project implements comprehensive GA4 tracking:
 
 The project currently includes comprehensive manual testing procedures and is in the process of implementing automated testing. Here's an overview of the testing strategy:
 
-> ⚠️ **Note:** The automated testing commands mentioned below are **not yet configured** in the project. The testing scripts are not defined in `package.json`, so running `npm test` or `npx playwright test` will fail. Manual testing is currently the primary method.
+The repository now includes a Node.js test suite (`npm test`), a scoped SaaS ESLint gate (`npm run lint:saas`), strict TypeScript checking (`npm run typecheck`), and a production build (`npm run build`). GitHub Actions runs these checks in sequence. Unit and architecture tests do not replace database-backed integration tests or browser E2E coverage; those remain required before production acceptance.
 
 ### Manual Testing Checklist
 
@@ -847,7 +847,7 @@ A: Zain's Serenity is a full-stack luxury coastal retreat website that provides 
 
 <details>
 <summary><strong>Q: Is this a production-ready application?</strong></summary>
-A: Yes, the application is deployed and running in production at [zainserenity.vercel.app](https://zainserenity.vercel.app). It includes comprehensive error handling, security features, and performance optimizations.
+A: The legacy hospitality website has previously been deployed, but the multi-tenant SaaS transformation is still under development in the `ceylivo/Zain-Serenity` workspace branch. The SaaS foundation is not approved for production deployment; database-backed integration tests, security review, migration planning, and end-to-end validation remain.
 </details>
 
 <details>
@@ -919,18 +919,18 @@ A: With Vercel's free tier (hobby) and MongoDB Atlas free tier (512MB), the cost
 
 | Issue | Description | Workaround | Status |
 |-------|-------------|------------|--------|
-| **No Automated Tests** | Manual testing only currently | Use testing checklist in Testing section | 🔄 Planned |
-| **Single Admin Role** | No granular permission levels | Multiple admin users can be created | ✅ Working as designed |
+| **Database / Browser Integration Coverage** | Unit and architecture tests exist; replica-set integration and browser E2E suites are not yet complete | Run the current CI checks and complete the outstanding integration/E2E plan | 🔄 In progress |
+| **SaaS Authorization** | Tenant/property-scoped permission RBAC is implemented in the SaaS workspace; legacy admin routes still require a separate authorization audit | Use the SaaS workspace access layer for new tenant features | 🔄 In progress |
 | **Email Rate Limits** | Gmail limited to 500 emails/day | Use a transactional email service for production | ⚠️ Known limitation |
 | **Image Size Limit** | Cloudinary free tier has 10MB limit | Compress images before upload | ⚠️ Known limitation |
 | **3D Model Performance** | Large GLB files may slow loading | Optimize model size < 10MB | 🔄 Planned |
 | **No Multi-language** | English-only interface | i18n support planned for future | 🔄 Planned |
-| **No Payment Gateway** | Bookings don't process payments | Payment integration planned | 🔄 Planned |
+| **Payment Processing** | Manual bank transfer, Easypaisa, JazzCash and staff-recorded cash collection workflows exist; Stripe checkout is not configured | Use enabled manual methods; do not treat cash-on-arrival selection as collection | 🔄 In progress |
 | **Limited Offline Support** | No PWA offline functionality | Manifest is present, full PWA planned | 🔄 Planned |
 
 ### Work in Progress
 
-- **Automated Testing** — Jest/Vitest setup for API routes and components
+- **Database and E2E Testing** — Replica-set concurrency/integration coverage and browser-level guest/staff workflows
 - **Payment Integration** — Stripe or PayPal integration for online payments
 - **i18n Support** — Multi-language support for international guests
 - **PWA Features** — Offline support and push notifications
