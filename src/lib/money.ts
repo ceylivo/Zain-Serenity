@@ -26,12 +26,13 @@ export function toMinorUnits(value: number | string, currency: string): number {
   const match = /^(-?)(\\d+)(?:\\.(\\d+))?$/.exec(raw);
   if (!match) throw new RangeError("Money amount must be a plain decimal value.");
   const fraction = match[3] ?? "";
-  if (fraction.length > digits) {
+  const significantExtraPrecision = fraction.slice(digits);
+  if (/[1-9]/.test(significantExtraPrecision)) {
     throw new RangeError(`Amount has more than ${digits} decimal places for ${currency.toUpperCase()}.`);
   }
   const factor = 10 ** digits;
   const whole = Number(match[2]);
-  const fractional = Number((fraction + "0".repeat(digits)).slice(0, digits) || "0");
+  const fractional = Number((fraction.slice(0, digits) + "0".repeat(digits)).slice(0, digits) || "0");
   const minor = whole * factor + fractional;
   if (!Number.isSafeInteger(minor)) throw new RangeError("Money amount exceeds the safe calculation range.");
   return match[1] === "-" ? -minor : minor;
@@ -53,5 +54,10 @@ export function normalizeMoney(value: number | string, currency: string): number
 }
 
 export function sumMinorUnits(values: Array<number | string>, currency: string): number {
-  return values.reduce((total, value) => total + toMinorUnits(value, currency), 0);
+  const total = values.reduce((sum, value) => {
+    const next = sum + toMinorUnits(value, currency);
+    if (!Number.isSafeInteger(next)) throw new RangeError("Money total exceeds the safe calculation range.");
+    return next;
+  }, 0);
+  return total;
 }
