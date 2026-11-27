@@ -77,19 +77,24 @@ export function addMoneyObservation(report, collectionName, document, field, val
   const result = inspectMoneyValue(value, currency);
   const bucketKey = currency || "MISSING_CURRENCY";
   const currencyBucket = report.currencies[bucketKey] ??= {
-    fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0", unsafeFieldCount:0,
+    fields:0, validFields:0, invalidFields:0, byField:{},
+  };
+  const fieldBucket = currencyBucket.byField[field] ??= {
+    fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0",
   };
   currencyBucket.fields += 1;
+  fieldBucket.fields += 1;
   if (result.minorUnits !== null) {
-    currencyBucket.totalMinorUnits = (BigInt(currencyBucket.totalMinorUnits) + BigInt(result.minorUnits)).toString();
+    fieldBucket.totalMinorUnits = (BigInt(fieldBucket.totalMinorUnits) + BigInt(result.minorUnits)).toString();
   }
   if (result.status === "valid") {
     currencyBucket.validFields += 1;
+    fieldBucket.validFields += 1;
     report.totals.validFields += 1;
   } else {
     currencyBucket.invalidFields += 1;
+    fieldBucket.invalidFields += 1;
     report.totals.invalidFields += 1;
-    if (result.status === "unsafe_integer") currencyBucket.unsafeFieldCount += 1;
   }
   if (result.status !== "valid") {
     report.anomalyCounts[result.status] = (report.anomalyCounts[result.status] ?? 0) + 1;
