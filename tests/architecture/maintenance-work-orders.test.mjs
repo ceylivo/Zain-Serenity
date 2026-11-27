@@ -23,7 +23,7 @@ test("maintenance updates are property scoped and record actor-attributed status
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/maintenance/work-orders/[workOrderId]/route.ts");
   assert.ok(route.includes('permission: "inventory:manage"'));
   assert.ok(route.includes('MaintenanceWorkOrder.findOne({ _id: workOrderId, tenantId: access.tenantId, propertyId: access.propertyId })'));
-  assert.ok(route.includes("order.statusHistory.push"));
+  assert.ok(route.includes("current.statusHistory.push"));
   assert.ok(route.includes("completedAt"));
   assert.ok(route.includes('action: "maintenance.work_order.updated"'));
 });
