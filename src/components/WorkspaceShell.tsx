@@ -14,6 +14,7 @@ const navigation = [
   { href: "/workspace/maintenance", label: "Maintenance", description: "Repairs and work orders", icon: Wrench },
   { href: "/workspace/payments", label: "Payments", description: "Verification and collections", icon: CreditCard },
   { href: "/workspace/reconciliation", label: "Reconciliation", description: "Collected funds and balances", icon: ChartNoAxesCombined },
+  { href: "/workspace/refunds", label: "Refunds", description: "Refund requests and settlement", icon: CreditCard },
   { href: "/workspace/payment-settings", label: "Payment settings", description: "Property payment methods", icon: Settings2 },
 ];
 
