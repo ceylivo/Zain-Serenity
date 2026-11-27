@@ -28,7 +28,7 @@ test("refund requests reserve the refundable amount atomically and enforce idemp
 test("refund completion requires external settlement evidence and keeps booking/payment states synchronized", async () => {
   const service = await read("../../src/lib/refundLifecycle.ts");
   assert.match(service, /REFUND_REFERENCE_REQUIRED/);
-  assert.match(service, /refund\\.externalReference = input\\.externalReference/);
+  assert.match(service, /refund\.externalReference = input\.externalReference/);
   assert.match(service, /status: "completed"/);
   assert.match(service, /payment\.status = "refunded"/);
   assert.match(service, /booking\.paymentStatus = net === 0 && gross > 0 \? "refunded"/);
