@@ -121,6 +121,7 @@ export async function requestPaymentRefund(input: {
     return result;
   } catch (error) {
     if (error instanceof RefundLifecycleError) throw error;
+    if (error instanceof RangeError) throw new RefundLifecycleError("Refund amount must use the precision supported by its currency.", "REFUND_AMOUNT_INVALID");
     if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
       throw new RefundLifecycleError("Refund request already exists.", "IDEMPOTENCY_CONFLICT");
     }
@@ -223,6 +224,7 @@ export async function transitionPaymentRefund(input: {
     return result;
   } catch (error) {
     if (error instanceof RefundLifecycleError) throw error;
+    if (error instanceof RangeError) throw new RefundLifecycleError("Refund amount must use the precision supported by its currency.", "REFUND_AMOUNT_INVALID");
     return failTransaction(error);
   } finally { await session.endSession(); }
 }
