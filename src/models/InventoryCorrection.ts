@@ -35,7 +35,7 @@ const InventoryCorrectionSchema = new Schema<IInventoryCorrection>({
   propertyId: { type: Schema.Types.ObjectId, ref: "Property", required: true, immutable: true, index: true },
   roomTypeId: { type: Schema.Types.ObjectId, ref: "RoomType", required: true, immutable: true },
   reconciliationCaseId: { type: Schema.Types.ObjectId, ref: "InventoryReconciliationCase", required: true, immutable: true },
-  date: { type: String, required: true, match: /^\\d{4}-\\d{2}-\\d{2}$/, immutable: true },
+  date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/, immutable: true },
   idempotencyKey: { type: String, required: true, maxlength: 128, immutable: true },
   deltaBlockedRooms: { type: Number, required: true, validate: Number.isInteger, immutable: true },
   beforeBlockedRooms: { type: Number, required: true, min: 0, immutable: true },
