@@ -7,6 +7,7 @@ import dbConnect from "@/lib/dbConnect";
 import Payment from "@/models/Payment";
 import Refund from "@/models/Refund";
 import Booking from "@/models/Booking";
+import { fromMinorUnits, toMinorUnits } from "@/lib/money";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
@@ -17,7 +18,10 @@ const validDate = (value: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 const groupTotals = (rows: Array<{ _id: string; amount: number; count: number }>) =>
-  Object.fromEntries(rows.map((row) => [row._id, { amount: Math.round(row.amount * 100) / 100, count: row.count }]));
+  Object.fromEntries(rows.map((row) => [row._id, {
+    amount: fromMinorUnits(toMinorUnits(row.amount, row._id), row._id),
+    count: row.count,
+  }]));
 
 export async function GET(request: Request, context: Context) {
   const session = await getServerSession(authOptions);
@@ -126,19 +130,20 @@ export async function GET(request: Request, context: Context) {
 
   const gross = groupTotals(payments);
   const refundTotals = Object.fromEntries(refunds.map((row) => [row._id, {
-    completedAmount: Math.round(row.completedAmount * 100) / 100,
+    completedAmount: fromMinorUnits(toMinorUnits(row.completedAmount, row._id), row._id),
     completedCount: row.completedCount,
-    pendingAmount: Math.round(row.pendingAmount * 100) / 100,
+    pendingAmount: fromMinorUnits(toMinorUnits(row.pendingAmount, row._id), row._id),
     pendingCount: row.pendingCount,
   }]));
   const currencies = [...new Set([...Object.keys(gross), ...Object.keys(refundTotals)])];
   const totals = Object.fromEntries(currencies.map((currency) => {
     const collected = gross[currency]?.amount ?? 0;
     const refund = refundTotals[currency]?.completedAmount ?? 0;
+    const netMinor = toMinorUnits(collected, currency) - toMinorUnits(refund, currency);
     return [currency, {
       grossCollected: collected,
       completedRefunds: refund,
-      netCollected: Math.round((collected - refund) * 100) / 100,
+      netCollected: fromMinorUnits(netMinor, currency),
       pendingRefunds: refundTotals[currency]?.pendingAmount ?? 0,
       paymentCount: gross[currency]?.count ?? 0,
       completedRefundCount: refundTotals[currency]?.completedCount ?? 0,
@@ -147,7 +152,7 @@ export async function GET(request: Request, context: Context) {
   }));
 
   const outstandingByCurrency = Object.fromEntries(outstanding.map((row) => [row._id, {
-    amount: Math.round(row.amount * 100) / 100,
+    amount: fromMinorUnits(toMinorUnits(row.amount, row._id), row._id),
     bookings: row.bookings,
   }]));
 
