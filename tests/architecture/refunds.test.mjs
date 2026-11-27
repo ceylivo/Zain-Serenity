@@ -22,7 +22,7 @@ test("refund requests reserve the refundable amount atomically and enforce idemp
   assert.match(service, /Payment\.updateOne\([\s\S]*?\$expr:[\s\S]*?\$ifNull: \["\$refundReservedAmount", 0\]/);
   assert.match(service, /\$inc: \{ refundReservedAmount: amount \/ 100 \}/);
   assert.match(service, /IDEMPOTENCY_CONFLICT/);
-  assert.match(service, /REFUND_LIMIT_EXCEEDED/);
+  assert.match(service, /REFUND_LIMIT_EXCEEDED/);\n  assert.match(service, /toMinorUnits/);\n  assert.match(service, /fromMinorUnits/);
 });
 
 test("refund completion requires external settlement evidence and keeps booking/payment states synchronized", async () => {
