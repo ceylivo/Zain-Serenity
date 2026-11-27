@@ -3,11 +3,12 @@ import mongoose from "mongoose";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveTenantAccess } from "@/lib/tenantAccess";
-import { isValidDateOnly } from "@/lib/inputValidation";
+import { isRecord, isValidDateOnly, readString } from "@/lib/inputValidation";
 import dbConnect from "@/lib/dbConnect";
 import InventoryDay from "@/models/InventoryDay";
 import InventoryBlock from "@/models/InventoryBlock";
 import RoomType from "@/models/RoomType";
+import InventoryReconciliationCase from "@/models/InventoryReconciliationCase";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
@@ -120,4 +121,78 @@ export async function GET(request: Request, context: Context) {
       message: "Read-only audit only. Legacy quantities do not contain enough history to safely infer original block records. No inventory counters or block records were changed.",
     },
   });
+}
+
+
+/**
+ * Opens an immutable review case for a discrepancy observed by the read-only
+ * audit. Recomputes the snapshot before recording it and never changes stock.
+ */
+export async function POST(request: Request, context: Context) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || !mongoose.isValidObjectId(session.user.id)) {
+    return fail("UNAUTHENTICATED", "Authentication required", 401);
+  }
+  const { tenantSlug, propertySlug } = await context.params;
+  const access = await resolveTenantAccess({
+    userId: session.user.id, tenantSlug, propertySlug, permission: "inventory:manage",
+  });
+  if (!access.ok || !access.propertyId) {
+    return fail("FORBIDDEN", "Inventory management permission is required to open a review case", 403);
+  }
+
+  let body: unknown;
+  try { body = await request.json(); } catch {
+    return fail("INVALID_JSON", "Request body must be valid JSON", 400);
+  }
+  if (!isRecord(body)) return fail("VALIDATION_ERROR", "A JSON object is required", 422);
+  const roomTypeId = readString(body.roomTypeId, { min: 24, max: 24 });
+  const date = readString(body.date, { min: 10, max: 10 });
+  const reason = readString(body.reason, { min: 3, max: 500 });
+  if (!roomTypeId || !mongoose.isValidObjectId(roomTypeId) || !date || !isValidDateOnly(date) || !reason) {
+    return fail("VALIDATION_ERROR", "Room type, valid date and review reason are required", 422);
+  }
+
+  await dbConnect();
+  const scope = {
+    tenantId: access.tenantId,
+    propertyId: access.propertyId,
+    roomTypeId: new mongoose.Types.ObjectId(roomTypeId),
+  };
+  const [day, blocks, roomType] = await Promise.all([
+    InventoryDay.findOne({ ...scope, date }).select("blockedRooms").lean(),
+    InventoryBlock.find({
+      ...scope, status: { $in: ["active", "partially_released"] },
+      startDate: { $lte: date }, endDate: { $gte: date }, remainingQuantity: { $gt: 0 },
+    }).select("remainingQuantity").lean(),
+    RoomType.findOne({ _id: scope.roomTypeId, tenantId: access.tenantId, propertyId: access.propertyId })
+      .select("_id").lean(),
+  ]);
+  if (!roomType) return fail("ROOM_TYPE_NOT_FOUND", "Room type was not found in this property", 404);
+
+  const inventoryBlocked = day?.blockedRooms ?? 0;
+  const trackedBlocked = blocks.reduce((sum, block) => sum + block.remainingQuantity, 0);
+  const legacyUntracked = Math.max(0, inventoryBlocked - trackedBlocked);
+  const overtracked = Math.max(0, trackedBlocked - inventoryBlocked);
+  if (legacyUntracked === 0 && overtracked === 0 && day) {
+    return fail("DISCREPANCY_NO_LONGER_EXISTS", "The inventory counters now match tracked blocks. Run the audit again.", 409);
+  }
+  const snapshotKey = [inventoryBlocked, trackedBlocked, legacyUntracked, overtracked, day ? "present" : "missing"].join(":");
+  const reviewCase = await InventoryReconciliationCase.findOneAndUpdate(
+    { ...scope, date, snapshotKey },
+    { $setOnInsert: {
+      inventoryBlocked, trackedBlocked, legacyUntracked, overtracked, snapshotKey,
+      reason, status: "open", createdBy: new mongoose.Types.ObjectId(session.user.id),
+    } },
+    { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+  );
+  return NextResponse.json({
+    data: {
+      id: reviewCase._id.toString(),
+      status: reviewCase.status,
+      createdAt: reviewCase.createdAt,
+      snapshot: { date, inventoryBlocked, trackedBlocked, legacyUntracked, overtracked, inventoryDayMissing: !day },
+      message: "Review case recorded. Inventory quantities were not changed.",
+    },
+  }, { status: 201 });
 }
