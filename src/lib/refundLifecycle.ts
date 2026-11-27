@@ -5,6 +5,7 @@ import Payment from "@/models/Payment";
 import Booking from "@/models/Booking";
 import Refund, { type RefundStatus } from "@/models/Refund";
 import AuditLog from "@/models/AuditLog";
+import { fromMinorUnits, toMinorUnits } from "@/lib/money";
 
 export class RefundLifecycleError extends Error {
   constructor(message: string, public readonly code:
@@ -23,8 +24,8 @@ function failTransaction(error: unknown): never {
   }
   throw new RefundLifecycleError("The refund operation could not be completed. Please retry.", "REFUND_OPERATION_FAILED");
 }
-const cents = (value: number) => Math.round((value + Number.EPSILON) * 100);
-const money = (value: number) => cents(value) / 100;
+const minor = (value: number, currency: string) => toMinorUnits(value, currency);
+const major = (value: number, currency: string) => fromMinorUnits(value, currency);
 
 async function refreshBookingPaymentStatus(input: {
   tenantId: mongoose.Types.ObjectId; propertyId: mongoose.Types.ObjectId;
@@ -43,12 +44,16 @@ async function refreshBookingPaymentStatus(input: {
     tenantId: input.tenantId, propertyId: input.propertyId,
     paymentId: { $in: paymentIds }, status: "completed",
   }).session(input.session) : [];
-  const gross = successful.reduce((sum, payment) => sum + cents(payment.amount), 0);
-  const refunded = completed.reduce((sum, refund) => sum + cents(refund.amount), 0);
+  const currency = booking.currency || "PKR";
+  if (successful.some((payment) => payment.currency !== currency) || completed.some((refund) => refund.currency !== currency)) {
+    throw new RefundLifecycleError("Booking, payment and refund currencies must match.", "REFUND_AMOUNT_INVALID");
+  }
+  const gross = successful.reduce((sum, payment) => sum + minor(payment.amount, currency), 0);
+  const refunded = completed.reduce((sum, refund) => sum + minor(refund.amount, currency), 0);
   const net = Math.max(0, gross - refunded);
   booking.paymentStatus = net === 0 && gross > 0 ? "refunded"
     : refunded > 0 ? "partially_refunded"
-    : gross >= cents(booking.totalPrice) ? "paid"
+    : gross >= minor(booking.totalPrice, currency) ? "paid"
     : gross > 0 ? "partially_paid" : "unpaid";
   await booking.save({ session: input.session });
 }
@@ -70,7 +75,7 @@ export async function requestPaymentRefund(input: {
         tenantId: input.tenantId, propertyId: input.propertyId, idempotencyKey: input.idempotencyKey,
       }).session(session);
       if (existing) {
-        if (existing.paymentId.toString() !== input.paymentId || cents(existing.amount) !== cents(input.amount) ||
+        if (existing.paymentId.toString() !== input.paymentId || minor(existing.amount, existing.currency) !== minor(input.amount, existing.currency) ||
             existing.requestedBy.toString() !== input.actorUserId) {
           throw new RefundLifecycleError("Idempotency key was already used for another refund request.", "IDEMPOTENCY_CONFLICT");
         }
@@ -83,23 +88,26 @@ export async function requestPaymentRefund(input: {
       if (!payment || !["succeeded", "refunded"].includes(payment.status)) {
         throw new RefundLifecycleError("Only collected or settled payments can be refunded.", "PAYMENT_NOT_FOUND");
       }
-      const amount = cents(input.amount);
+      if (input.amount <= 0) throw new RefundLifecycleError("Refund amount must be positive.", "REFUND_AMOUNT_INVALID");
+      const currency = payment.currency;
+      const amount = minor(input.amount, currency);
+      const amountMajor = major(amount, currency);
       const reserve = await Payment.updateOne({
         _id: payment._id, tenantId: input.tenantId, propertyId: input.propertyId,
         $expr: {
           $lte: [
-            { $add: [{ $ifNull: ["$refundReservedAmount", 0] }, amount / 100] },
+            { $add: [{ $ifNull: ["$refundReservedAmount", 0] }, amountMajor] },
             "$amount",
           ],
         },
-      }, { $inc: { refundReservedAmount: amount / 100 } }, { session });
+      }, { $inc: { refundReservedAmount: amountMajor } }, { session });
       if (reserve.modifiedCount !== 1) {
         throw new RefundLifecycleError("Requested refunds cannot exceed the payment's remaining refundable amount.", "REFUND_LIMIT_EXCEEDED");
       }
       const [refund] = await Refund.create([{
         tenantId: input.tenantId, propertyId: input.propertyId, bookingId: payment.bookingId,
         paymentId: payment._id, requestedBy: new mongoose.Types.ObjectId(input.actorUserId),
-        amount: money(amount), currency: payment.currency, reason: input.reason.trim(),
+        amount: amountMajor, currency, reason: input.reason.trim(),
         status: "requested", idempotencyKey: input.idempotencyKey,
       }], { session });
       await AuditLog.create([{
@@ -188,9 +196,10 @@ export async function transitionPaymentRefund(input: {
           tenantId: input.tenantId, propertyId: input.propertyId,
           paymentId: payment._id, status: "completed",
         }).session(session);
-        const refunded = completed.reduce((sum, item) => sum + cents(item.amount), 0);
-        if (refunded > cents(payment.amount)) throw new RefundLifecycleError("Completed refunds exceed the captured payment.", "REFUND_LIMIT_EXCEEDED");
-        if (refunded === cents(payment.amount)) {
+        if (completed.some((item) => item.currency !== payment.currency)) throw new RefundLifecycleError("Refund currency does not match its payment.", "REFUND_AMOUNT_INVALID");
+        const refunded = completed.reduce((sum, item) => sum + minor(item.amount, payment.currency), 0);
+        if (refunded > minor(payment.amount, payment.currency)) throw new RefundLifecycleError("Completed refunds exceed the captured payment.", "REFUND_LIMIT_EXCEEDED");
+        if (refunded === minor(payment.amount, payment.currency)) {
           payment.status = "refunded";
           payment.isActive = false;
           await payment.save({ session });
