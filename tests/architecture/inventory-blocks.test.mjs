@@ -159,7 +159,7 @@ test("inventory correction ledger is tenant-scoped, idempotent and preserves imm
   assert.match(route, /status: "resolved"/);
 });
 
-test("inventory correction approval is restricted to tenant owners", async () => {
+test("inventory correction approval is restricted to tenant owners and property managers", async () => {
   const permissions = await read("../../src/lib/permissions.ts");
   assert.match(permissions, /"inventory:correct_approve"/);
   const owner = permissions.match(/tenant_owner:\s*PERMISSIONS/);
