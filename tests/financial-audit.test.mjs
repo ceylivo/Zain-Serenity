@@ -31,3 +31,16 @@ test("audit uses exact integer minor-unit totals without floating point", () => 
 test("audit identifies amounts outside JavaScript safe integer range", () => {
   assert.equal(inspectMoneyValue("9007199254740992","JPY").status,"unsafe_integer");
 });
+
+test("audit flags negative monetary amounts for review", () => {
+  assert.equal(inspectMoneyValue("-0.01","PKR").status,"negative_value");
+  assert.equal(inspectMoneyValue("0.00","PKR").status,"valid");
+});
+
+test("audit script is read-only and prefers secondary reads", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const script = await readFile(new URL("../scripts/audit-financial-data.mjs", import.meta.url), "utf8");
+  assert.match(script, /readPreference:\s*"secondaryPreferred"/);
+  assert.match(script, /collection\.find\(/);
+  assert.doesNotMatch(script, /\.insertOne\(|\.updateOne\(|\.replaceOne\(|\.deleteOne\(|\.bulkWrite\(/);
+});
