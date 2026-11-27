@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, BedDouble, CalendarCheck, CreditCard, Loader2, RefreshCw, SprayCan, Wrench } from "lucide-react";
 
 type Membership = { id: string; role: string; tenant: { name: string; slug: string } };
-type Property = { _id: string; name: string; slug: string; currency?: string };
+type Property = { _id: string; name: string; slug: string; currency?: string; timezone?: string };
 type Dashboard = {
   date: string; timezone: string;
   bookings: { arrivals: number; departures: number; inHouse: number; newToday: number; pendingPayments: number };
@@ -18,7 +18,9 @@ type Dashboard = {
 type Api<T> = { data?: T; error?: { message?: string } };
 const field = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800";
 const today = () => { const now = new Date(); return [now.getFullYear(), String(now.getMonth()+1).padStart(2,"0"), String(now.getDate()).padStart(2,"0")].join("-"); };
-const prettyDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
+const prettyDate = (value: string, timeZone: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone }).format(new Date(value));
+const prettyDayKey = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T12:00:00.000Z`));
+const dateKeyInTimeZone = (timeZone: string) => { const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const values = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${values.year}-${values.month}-${values.day}`; };
 const number = (value: number) => new Intl.NumberFormat().format(value);
 
 function Metric({ label, value, hint, icon: Icon, href, tone = "slate" }: { label: string; value: number; hint: string; icon: typeof BedDouble; href?: string; tone?: "slate" | "teal" | "amber" | "rose" }) {
@@ -40,6 +42,13 @@ export default function WorkspaceDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const selectedTenant = useMemo(() => memberships.find((item) => item.tenant.slug === tenantSlug), [memberships, tenantSlug]);
+  const selectedProperty = useMemo(() => properties.find((item) => item.slug === propertySlug), [properties, propertySlug]);
+
+  useEffect(() => {
+    if (!selectedProperty) return;
+    try { setDate(dateKeyInTimeZone(selectedProperty.timezone || "UTC")); }
+    catch { setError("This property has an invalid timezone configuration."); }
+  }, [selectedProperty]);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login?callbackUrl=/workspace");
@@ -110,7 +119,7 @@ export default function WorkspaceDashboardPage() {
 
     {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
     {!tenantSlug || !propertySlug ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">Select a workspace and property to view operations.</div> : data && <>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold text-slate-950">Daily operations</h2><span className="text-xs text-slate-500">Date: {prettyDate(data.date)} · Metrics use UTC date boundaries</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold text-slate-950">Daily operations</h2><span className="text-xs text-slate-500">Date: {prettyDayKey(data.date)} · Property timezone: {data.timezone}</span></div>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Arrivals today" value={data.bookings.arrivals} hint="Confirmed and pending check-ins" icon={ArrowDownRight} href="/workspace/bookings" tone="teal"/>
         <Metric label="Departures today" value={data.bookings.departures} hint="Guests scheduled to check out" icon={ArrowUpRight} href="/workspace/bookings"/>
@@ -138,7 +147,7 @@ export default function WorkspaceDashboardPage() {
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-semibold text-slate-950">Upcoming arrivals & departures</h2><p className="mt-1 text-xs text-slate-500">Next seven days · up to twelve records</p></div><Link href="/workspace/bookings" className="text-xs font-semibold text-teal-700 hover:underline">Manage bookings</Link></div>
-        {data.upcoming.length === 0 ? <p className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500">No upcoming arrivals or departures for this period.</p> : <div className="divide-y divide-slate-100">{data.upcoming.map((item) => <div key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3"><div className="flex items-center gap-3"><span className={`rounded-xl p-2 ${item.kind === "arrival" ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"}`}>{item.kind === "arrival" ? <ArrowDownRight size={18}/> : <ArrowUpRight size={18}/>}</span><div><p className="text-sm font-semibold capitalize text-slate-900">{item.kind} · {item.roomNumber ? `Room ${item.roomNumber}` : "Room unassigned"}</p><p className="mt-0.5 text-xs text-slate-500">{item.guests} guests · {item.status.replaceAll("_"," ")}</p></div></div><span className="text-sm text-slate-600">{prettyDate(item.date)}</span></div>)}</div>}
+        {data.upcoming.length === 0 ? <p className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500">No upcoming arrivals or departures for this period.</p> : <div className="divide-y divide-slate-100">{data.upcoming.map((item) => <div key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3"><div className="flex items-center gap-3"><span className={`rounded-xl p-2 ${item.kind === "arrival" ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"}`}>{item.kind === "arrival" ? <ArrowDownRight size={18}/> : <ArrowUpRight size={18}/>}</span><div><p className="text-sm font-semibold capitalize text-slate-900">{item.kind} · {item.roomNumber ? `Room ${item.roomNumber}` : "Room unassigned"}</p><p className="mt-0.5 text-xs text-slate-500">{item.guests} guests · {item.status.replaceAll("_"," ")}</p></div></div><span className="text-sm text-slate-600">{prettyDate(item.date, data.timezone)}</span></div>)}</div>}
       </section>
       <p className="text-xs text-slate-400">Payment totals are not presented as revenue: this overview tracks booking/payment follow-up counts, not settled financial transactions.</p>
     </>}
