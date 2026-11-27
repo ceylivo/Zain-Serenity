@@ -130,13 +130,13 @@ export async function POST(request: Request, context: Context) {
   }
   if (!isRecord(body)) return fail("VALIDATION_ERROR", "A JSON object is required", 422);
 
-  const action = readString(body.action, { min: 5, max: 7 });
+  const action = readString(body.action, { min: 5, max: 5 });
   const roomTypeId = readString(body.roomTypeId, { min: 24, max: 24 });
   const startDate = readString(body.startDate, { min: 10, max: 10 });
   const endDate = readString(body.endDate, { min: 10, max: 10 });
   const quantity = body.quantity;
   const reason = readString(body.reason, { min: 3, max: 300 });
-  if (!action || !["block", "unblock"].includes(action) ||
+  if (action !== "block" ||
       !roomTypeId || !mongoose.isValidObjectId(roomTypeId) ||
       !startDate || !isValidDateOnly(startDate) ||
       !endDate || !isValidDateOnly(endDate) ||
@@ -217,36 +217,23 @@ export async function POST(request: Request, context: Context) {
           releasedQuantity: 0,
         }], { session: sessionDb });
         createdBlockId = block._id.toString();
-      } else {
-        // Legacy quantity-only unblocks remain supported for old records.
-        for (const date of dates) {
-          const updated = await InventoryDay.findOneAndUpdate(
-            { ...scope, date, blockedRooms: { $gte: Number(quantity) } },
-            { $inc: { availableRooms: Number(quantity), blockedRooms: -Number(quantity) } },
-            { new: true, session: sessionDb }
-          );
-          if (!updated) throw new Error("INSUFFICIENT_BLOCKED_INVENTORY");
-        }
       }
       await AuditLog.create([{
         tenantId: access.tenantId,
         propertyId: access.propertyId,
         actorUserId: new mongoose.Types.ObjectId(session.user.id),
-        action: action === "block" ? "inventory.rooms.blocked" : "inventory.rooms.unblocked",
-        resourceType: action === "block" ? "inventory_block" : "room_type",
-        resourceId: createdBlockId || roomType._id.toString(),
+        action: "inventory.rooms.blocked",
+        resourceType: "inventory_block",
+        resourceId: createdBlockId,
         outcome: "success",
         metadata: { startDate, endDate, quantity: Number(quantity), reason },
       }], { session: sessionDb });
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary" });
-    return NextResponse.json({ data: { action, blockId: createdBlockId || null, roomTypeId, startDate, endDate, quantity: Number(quantity) } });
+    return NextResponse.json({ data: { action: "block", blockId: createdBlockId, roomTypeId, startDate, endDate, quantity: Number(quantity) } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "INSUFFICIENT_AVAILABLE_INVENTORY") {
       return fail("INSUFFICIENT_INVENTORY", "Cannot block rooms that are already reserved or unavailable", 409);
-    }
-    if (message === "INSUFFICIENT_BLOCKED_INVENTORY") {
-      return fail("INSUFFICIENT_BLOCKED_INVENTORY", "Cannot unblock more rooms than are currently blocked", 409);
     }
     if (/Transaction numbers are only allowed|replica set|mongos|does not support transactions/i.test(message)) {
       return fail("TRANSACTION_UNAVAILABLE", "Inventory changes require MongoDB transaction support", 503);
