@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BedDouble, Boxes, CreditCard, Settings2, SprayCan, ChartNoAxesCombined, Wrench, CalendarClock, Menu, X, LayoutDashboard } from "lucide-react";
+import { BedDouble, Boxes, CreditCard, Settings2, SprayCan, ChartNoAxesCombined, Wrench, ClipboardList, CalendarClock, Menu, X, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 
 const navigation = [
@@ -10,6 +10,7 @@ const navigation = [
   { href: "/workspace/bookings", label: "Bookings", description: "Reservations and guest stays", icon: BedDouble },
   { href: "/workspace/room-timeline", label: "Room timeline", description: "Daily property operations", icon: CalendarClock },
   { href: "/workspace/inventory", label: "Inventory", description: "Rooms, rates and availability", icon: Boxes },
+  { href: "/workspace/inventory-reconciliation", label: "Block audit", description: "Legacy inventory integrity", icon: ClipboardList },
   { href: "/workspace/housekeeping", label: "Housekeeping", description: "Cleaning and room readiness", icon: SprayCan },
   { href: "/workspace/maintenance", label: "Maintenance", description: "Repairs and work orders", icon: Wrench },
   { href: "/workspace/payments", label: "Payments", description: "Verification and collections", icon: CreditCard },
