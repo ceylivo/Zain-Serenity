@@ -9,12 +9,12 @@ import Booking from "@/models/Booking";
 import PhysicalRoom from "@/models/PhysicalRoom";
 import HousekeepingTask from "@/models/HousekeepingTask";
 import MaintenanceWorkOrder from "@/models/MaintenanceWorkOrder";
+import Property from "@/models/Property";
+import { getDateInTimeZoneStart, getDateKeyInTimeZone, getNextDateKey } from "@/lib/propertyTime";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
 const fail = (code: string, message: string, status: number) => NextResponse.json({ error: { code, message } }, { status });
-const dayStart = (value: string) => new Date(`${value}T00:00:00.000Z`);
-const nextDay = (value: string) => new Date(dayStart(value).getTime() + 86400000);
 
 export async function GET(request: Request, context: Context) {
   const session = await getServerSession(authOptions);
@@ -23,14 +23,27 @@ export async function GET(request: Request, context: Context) {
   const access = await resolveTenantAccess({ userId: session.user.id, tenantSlug, propertySlug, permission: "booking:read" });
   if (!access.ok || !access.propertyId) return fail("FORBIDDEN", "Dashboard access denied", 403);
 
-  const url = new URL(request.url);
-  const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
-  if (!isValidDateOnly(date)) return fail("INVALID_DATE", "Date must use YYYY-MM-DD.", 422);
-  const start = dayStart(date);
-  const end = nextDay(date);
-  const now = new Date();
-  const sevenDays = new Date(start.getTime() + 7 * 86400000);
   await dbConnect();
+  const property = await Property.findOne({ _id: access.propertyId, tenantId: access.tenantId }).select("timezone").lean();
+  if (!property) return fail("PROPERTY_NOT_FOUND", "Property was not found in this workspace.", 404);
+  const timezone = property.timezone || "UTC";
+  const now = new Date();
+  const url = new URL(request.url);
+  const date = url.searchParams.get("date") ?? getDateKeyInTimeZone(now, timezone);
+  if (!isValidDateOnly(date)) return fail("INVALID_DATE", "Date must use YYYY-MM-DD.", 422);
+  let start: Date;
+  let end: Date;
+  let sevenDays: Date;
+  try {
+    start = getDateInTimeZoneStart(date, timezone);
+    const nextDate = getNextDateKey(date);
+    end = getDateInTimeZoneStart(nextDate, timezone);
+    let seventhDate = date;
+    for (let day = 0; day < 7; day += 1) seventhDate = getNextDateKey(seventhDate);
+    sevenDays = getDateInTimeZoneStart(seventhDate, timezone);
+  } catch {
+    return fail("INVALID_PROPERTY_TIMEZONE", "The property's configured timezone is invalid.", 422);
+  }
 
   const scope = { tenantId: access.tenantId as mongoose.Types.ObjectId, propertyId: access.propertyId as mongoose.Types.ObjectId };
   const activeBooking = { ...scope, status: { $in: ["pending", "confirmed"] as const } };
@@ -68,7 +81,7 @@ export async function GET(request: Request, context: Context) {
   });
 
   return NextResponse.json({ data: {
-    date, timezone: "UTC",
+    date, timezone,
     bookings: { arrivals, departures, inHouse, newToday: newBookings, pendingPayments },
     rooms: { total: totalRooms, ready: roomReady, occupied: roomOccupied, cleaning: roomCleaning, maintenance: roomMaintenance, outOfService: roomOutOfService },
     operations: { openHousekeeping, overdueHousekeeping, openMaintenance, urgentMaintenance },
