@@ -6,9 +6,12 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("refund records preserve tenant ownership, currency, idempotency and lifecycle history", async () => {
   const model = await read("../../src/models/Refund.ts");
-  assert.match(model, /tenantId: \{ type: Schema\.Types\.ObjectId[^\n]*immutable: true/);
-  assert.match(model, /propertyId: \{ type: Schema\.Types\.ObjectId[^\n]*immutable: true/);
-  assert.match(model, /idempotencyKey: \{ type: String[^\n]*immutable: true/);
+  assert.match(model, /tenantId: \{ type: Schema\.Types\.ObjectId[^
+]*immutable: true/);
+  assert.match(model, /propertyId: \{ type: Schema\.Types\.ObjectId[^
+]*immutable: true/);
+  assert.match(model, /idempotencyKey: \{ type: String[^
+]*immutable: true/);
   assert.match(model, /RefundSchema\.index\(\{ tenantId: 1, propertyId: 1, idempotencyKey: 1 \}, \{ unique: true \}\)/);
   assert.match(model, /requestedAt/);
   assert.match(model, /reviewedBy/);
@@ -22,7 +25,9 @@ test("refund requests reserve the refundable amount atomically and enforce idemp
   assert.match(service, /Payment\.updateOne\([\s\S]*?\$expr:[\s\S]*?\$ifNull: \["\$refundReservedAmount", 0\]/);
   assert.match(service, /\$inc: \{ refundReservedAmount: amount \/ 100 \}/);
   assert.match(service, /IDEMPOTENCY_CONFLICT/);
-  assert.match(service, /REFUND_LIMIT_EXCEEDED/);\n  assert.match(service, /toMinorUnits/);\n  assert.match(service, /fromMinorUnits/);
+  assert.match(service, /REFUND_LIMIT_EXCEEDED/);
+  assert.match(service, /toMinorUnits/);
+  assert.match(service, /fromMinorUnits/);
 });
 
 test("refund completion requires external settlement evidence and keeps booking/payment states synchronized", async () => {
