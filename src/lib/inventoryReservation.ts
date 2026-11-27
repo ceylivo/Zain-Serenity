@@ -5,6 +5,7 @@ import InventoryDay from "@/models/InventoryDay";
 import RoomType from "@/models/RoomType";
 import Booking from "@/models/Booking";
 import RatePlan from "@/models/RatePlan";
+import { fromMinorUnits, normalizeMoney, toMinorUnits } from "@/lib/money";
 
 export class InventoryReservationError extends Error {
   constructor(message: string, public readonly code: "INVALID_STAY" | "ROOM_TYPE_UNAVAILABLE" | "RATE_PLAN_UNAVAILABLE" | "INSUFFICIENT_INVENTORY" | "TRANSACTION_UNAVAILABLE" | "RESERVATION_FAILED") {
@@ -54,9 +55,24 @@ export async function createInventoryBooking(input: CreateInventoryBookingInput)
   if (!rate || nights.length < rate.minimumNights || (rate.maximumNights && nights.length > rate.maximumNights)) {
     throw new InventoryReservationError("Rate plan is unavailable for these dates.", "RATE_PLAN_UNAVAILABLE");
   }
-  const subtotal = rate.nightlyRate * nights.length;
-  const taxes = Math.round(subtotal * rate.taxRatePercent / 100);
-  const total = subtotal + taxes;
+  let subtotal: number;
+  let taxes: number;
+  let total: number;
+  try {
+    const nightlyMinor = toMinorUnits(rate.nightlyRate, rate.currency);
+    if (nightlyMinor < 0) throw new RangeError("Nightly rate cannot be negative.");
+    const subtotalMinor = nightlyMinor * nights.length;
+    if (!Number.isSafeInteger(subtotalMinor)) throw new RangeError("Stay amount exceeds the safe calculation range.");
+    const taxMinor = Math.round(subtotalMinor * rate.taxRatePercent / 100);
+    if (!Number.isSafeInteger(taxMinor)) throw new RangeError("Tax amount exceeds the safe calculation range.");
+    subtotal = fromMinorUnits(subtotalMinor, rate.currency);
+    taxes = fromMinorUnits(taxMinor, rate.currency);
+    total = fromMinorUnits(subtotalMinor + taxMinor, rate.currency);
+    // Keep a single canonical decimal representation in persisted legacy fields.
+    subtotal = normalizeMoney(subtotal, rate.currency);
+  } catch {
+    throw new InventoryReservationError("Rate plan amount or currency precision is invalid.", "RATE_PLAN_UNAVAILABLE");
+  }
 
   // Materialize each inventory day before opening the transaction. The unique
   // tenant/property/roomType/date index resolves concurrent first-booking upserts.
