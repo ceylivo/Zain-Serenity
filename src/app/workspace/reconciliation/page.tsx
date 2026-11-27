@@ -79,7 +79,7 @@ export default function ReconciliationPage() {
     finally { setLoading(false); }
   }, [tenant, property]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (tenant && property) void Promise.resolve().then(load); }, [load, tenant, property]);
   const canView = selected?.role && ["tenant_owner", "property_manager", "payment_verifier", "analyst"].includes(selected.role);
   const currencies = report ? [...new Set([...Object.keys(report.totals), ...Object.keys(report.outstandingBalances)])].sort() : [];
 
