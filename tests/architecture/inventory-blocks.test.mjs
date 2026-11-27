@@ -54,3 +54,17 @@ test("inventory workspace exposes tracked releases instead of an unscoped unbloc
   assert.ok(!page.includes("blockAction"));
   assert.ok(!page.includes("Unblock rooms"));
 });
+
+
+test("legacy inventory reconciliation is read-only and compares tracked blocks by day", async () => {
+  const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/reconciliation/route.ts");
+  assert.match(route, /permission: "inventory:read"/);
+  assert.match(route, /InventoryDay\.find/);
+  assert.match(route, /InventoryBlock\.find/);
+  assert.match(route, /legacyUntracked/);
+  assert.match(route, /overtracked/);
+  assert.match(route, /safeToAutoMigrate: false/);
+  assert.match(route, /Read-only audit only/);
+  assert.doesNotMatch(route, /findOneAndUpdate|updateOne|\.save\(|\.create\(/);
+  assert.match(route, /dates\.length > 31/);
+});
