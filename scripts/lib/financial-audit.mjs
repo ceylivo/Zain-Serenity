@@ -45,8 +45,9 @@ export function inspectMoneyValue(value, currency) {
   const minor = BigInt(parts.whole) * factor + BigInt(fraction || "0");
   const signed = parts.negative ? -minor : minor;
   const safeInteger = signed <= BigInt(Number.MAX_SAFE_INTEGER) && signed >= BigInt(Number.MIN_SAFE_INTEGER);
+  const status = !safeInteger ? "unsafe_integer" : (parts.negative && minor !== 0n ? "negative_value" : "valid");
   return {
-    status:safeInteger ? "valid" : "unsafe_integer",
+    status,
     minorUnits:signed.toString(),
     safeInteger,
     allowedDigits:digits,
@@ -79,14 +80,16 @@ export function addMoneyObservation(report, collectionName, document, field, val
     fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0", unsafeFieldCount:0,
   };
   currencyBucket.fields += 1;
-  if (result.status === "valid" || result.status === "unsafe_integer") {
-    currencyBucket.validFields += 1;
+  if (result.minorUnits !== null) {
     currencyBucket.totalMinorUnits = (BigInt(currencyBucket.totalMinorUnits) + BigInt(result.minorUnits)).toString();
+  }
+  if (result.status === "valid") {
+    currencyBucket.validFields += 1;
     report.totals.validFields += 1;
-    if (!result.safeInteger) currencyBucket.unsafeFieldCount += 1;
   } else {
     currencyBucket.invalidFields += 1;
     report.totals.invalidFields += 1;
+    if (result.status === "unsafe_integer") currencyBucket.unsafeFieldCount += 1;
   }
   if (result.status !== "valid") {
     report.anomalyCounts[result.status] = (report.anomalyCounts[result.status] ?? 0) + 1;
