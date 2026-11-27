@@ -18,7 +18,7 @@ test("payment amounts come from the booking and not request input", async () => 
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/payments/route.ts");
   assert.match(service, /const amount = Math\.round\(booking\.totalPrice \* 100\) \/ 100/);
   assert.doesNotMatch(route, /body\.amount|body\.totalPrice/);
-  assert.match(service, /paymentStatus = "pending"/);
+  assert.match(service, /paymentStatus = "pending"/);\n  assert.match(service, /toMinorUnits/);\n  assert.match(service, /paidMinor >= toMinorUnits/);
 });
 
 test("Stripe is explicitly unavailable until test checkout is implemented", async () => {
