@@ -9,9 +9,6 @@ test("refund records preserve tenant ownership, currency, idempotency and lifecy
   assert.match(model, /tenantId: \{ type: Schema\.Types\.ObjectId.*immutable: true/);
   assert.match(model, /propertyId: \{ type: Schema\.Types\.ObjectId.*immutable: true/);
   assert.match(model, /idempotencyKey: \{ type: String.*immutable: true/);
-]*immutable: true/);
-  assert.match(model, /idempotencyKey: \{ type: String[^
-]*immutable: true/);
   assert.match(model, /RefundSchema\.index\(\{ tenantId: 1, propertyId: 1, idempotencyKey: 1 \}, \{ unique: true \}\)/);
   assert.match(model, /requestedAt/);
   assert.match(model, /reviewedBy/);
