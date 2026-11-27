@@ -361,3 +361,12 @@ A dedicated tenant/property-scoped refund ledger now records requested amount, p
 - `/workspace/reconciliation` displays tenant/property financial totals grouped by currency: gross settled payments, completed and pending refunds, net collected and current outstanding booking balances.
 - Both screens are linked from workspace navigation and included in the SaaS lint gate. Architecture tests cover the UI wiring and key reporting/refund safeguards.
 - This is an initial operational interface. Date-range controls, pagination for high-volume properties, downloadable statements, database-backed concurrency tests and browser E2E coverage remain outstanding. Reconciliation outstanding balances are a current snapshot, not historical as-of balances; currencies are not converted.
+
+
+## Legacy inventory block reconciliation — read-only audit delivered
+
+- Added a tenant/property-scoped, permission-checked API at `GET /api/tenants/[tenantSlug]/properties/[propertySlug]/inventory/blocks/reconciliation?from=YYYY-MM-DD&to=YYYY-MM-DD`.
+- The audit compares each daily `InventoryDay.blockedRooms` counter with the sum of active/partially released `InventoryBlock.remainingQuantity` records covering that date.
+- It reports legacy untracked units, overtracked units and missing inventory-day records over a maximum 31-day window.
+- Added `/workspace/inventory-reconciliation` with date filters and a daily discrepancy table, linked in workspace navigation.
+- This is intentionally read-only. Legacy counters cannot reveal original actor, reason or exact date range; automatic conversion or release would fabricate history and could overbook rooms. A reviewed, explicit correction workflow remains future work.
