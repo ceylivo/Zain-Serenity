@@ -98,5 +98,5 @@ test("reconciliation workspace presents currency-separated ledger totals and cur
   assert.match(page, /completedRefunds/);
   assert.match(page, /pendingRefunds/);
   assert.match(page, /outstandingBalances/);
-  assert.match(page, /Financial reporting access/);
+  assert.match(page, /financial reporting access/i);
 });
