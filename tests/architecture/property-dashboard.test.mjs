@@ -7,9 +7,12 @@ test("property dashboard API is authenticated, permission-gated and tenant/prope
   const route = await read("../../src/app/api/tenants/[tenantSlug]/properties/[propertySlug]/operations/dashboard/route.ts");
   assert.ok(route.includes("getServerSession"));
   assert.ok(route.includes('permission: "booking:read"'));
-  assert.ok(route.includes("tenantId: access.tenantId, propertyId: access.propertyId"));
+  assert.ok(route.includes("tenantId: access.tenantId as mongoose.Types.ObjectId, propertyId: access.propertyId as mongoose.Types.ObjectId"));
   assert.ok(route.includes("isValidDateOnly"));
   assert.ok(route.includes("INVALID_DATE"));
+  assert.ok(route.includes("getDateInTimeZoneStart"));
+  assert.ok(route.includes("getDateKeyInTimeZone"));
+  assert.ok(route.includes("timezone"));
 });
 
 test("property dashboard aggregates bookings, room readiness and operational workload", async () => {
@@ -39,4 +42,18 @@ test("overdue workload calculations use a clock captured outside render", async 
   assert.ok(maintenance.includes("setCurrentTime(Date.now())"));
   assert.ok(!housekeeping.includes("dueAt).getTime() < Date.now()"));
   assert.ok(!maintenance.includes("dueAt).getTime() < Date.now()"));
+});
+
+test("property timezone utilities calculate local calendar boundaries rather than fixed UTC days", async () => {
+  const helper = await read("../../src/lib/propertyTime.ts");
+  for (const token of ["Intl.DateTimeFormat", "timeZone", "getDateInTimeZoneStart", "getNextDateKey", "getZonedDayBounds"]) assert.ok(helper.includes(token));
+  assert.ok(helper.includes("targetWallTime - representedWallTime"));
+});
+
+test("workspace dashboard initializes and formats dates in the selected property's timezone", async () => {
+  const page = await read("../../src/app/workspace/page.tsx");
+  assert.ok(page.includes("timezone?: string"));
+  assert.ok(page.includes("dateKeyInTimeZone"));
+  assert.ok(page.includes("prettyDate(item.date, data.timezone)"));
+  assert.ok(page.includes("Property timezone: {data.timezone}"));
 });
