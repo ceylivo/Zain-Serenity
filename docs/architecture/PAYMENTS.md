@@ -11,7 +11,7 @@ This document describes the tenant-scoped payment workflow currently implemented
 - Manual transfers are not marked paid until a receipt is submitted and an authorized property staff member verifies it.
 - Cash on arrival is not collected until authorized staff explicitly records receipt of cash.
 - Payment verification, rejection, settings changes and attempt creation are written to the audit log.
-- Refunds are intentionally not implemented in this phase. Paid bookings cannot be cancelled through the unpaid-booking cancellation path.
+- Refunds are tracked in a separate tenant/property-scoped ledger. Refund completion records staff-confirmed external settlement evidence; it does not initiate a transfer. Paid bookings cannot use the unpaid-booking cancellation path.
 
 ## Supported payment methods
 
@@ -77,7 +77,7 @@ Booking paymentStatus is updated independently (unpaid, pending, failed, paid, o
 - MongoDB indexes must be built before enabling payment traffic; in particular, the unique active-attempt index prevents concurrent duplicate attempts.
 - Configure each property's payment instructions before enabling its corresponding method.
 - Staff permissions are checked server-side for payment verification and cash collection.
-- The current implementation does not initiate external provider charges, process payment webhooks, issue refunds, or reconcile bank statements.
+- The current implementation does not initiate external provider charges, process provider webhooks, or import/reconcile bank statements. Internal refund requests, approvals, settlement evidence and currency-separated ledger reconciliation are implemented; these do not move money.
 
 
 ## Operations workspace
@@ -89,7 +89,7 @@ An initial tenant-scoped staff payment review screen is available at `/workspace
 - It lists payment attempts through the property payment API; staff access is controlled by the server-side `payment:read` permission.
 - Manual receipt verification/rejection and cash collection call the existing permission-protected mutation endpoints.
 - Receipt viewing requests the short-lived authorized receipt URL; the page does not store receipt URLs.
-- The screen is an initial operations UI, not a complete tenant dashboard. Payment settings, refunds, reconciliation, customer-side payment selection and full role-aware navigation remain follow-up work.
+- The screen is an initial operations UI, not a complete tenant dashboard. Payment settings, refund operations and internal reconciliation have separate workspace screens; customer-side payment selection and broader role-aware navigation remain follow-up work.
 
 
 ## Customer booking and manual payment UI
@@ -102,3 +102,23 @@ After reservation, customers can create an idempotent manual payment attempt and
 ## Customer booking history
 
 The `/my-bookings` customer page uses the authenticated `/api/my-bookings` endpoint. The endpoint aggregates each user's bookings across tenant/property boundaries while keeping the query anchored to the session user ID, and includes payment attempts scoped to the same user. Booking state and payment state are displayed independently. Cancellation actions call the corresponding tenant/property cancellation endpoint and therefore retain the server-side payment and inventory lifecycle safeguards.
+
+
+## Refund ledger and internal financial reconciliation
+
+Refunds are represented by the tenant/property-scoped `Refund` ledger and the refund lifecycle service.
+
+- Refund requests are linked to a payment and booking, require an idempotency key and reason, and reserve refundable balance transactionally.
+- Approval requires an authorized owner different from the requester. Rejection/failure requires a reason.
+- A refund can be marked completed only with an external settlement reference. This records evidence supplied by staff; the application does not transfer funds or call a bank/provider.
+- Booking payment status is recalculated from successful payments and completed refund records.
+- `/workspace/refunds` provides the initial owner workflow.
+- `/workspace/reconciliation` and the property reconciliation API report internal settled-payment/refund totals grouped by currency and current outstanding booking balances.
+
+Reconciliation is an internal ledger view, not bank-statement reconciliation. It does not convert currencies and its outstanding balance is a current snapshot, not a historical as-of balance. Downloadable statements, historical balance snapshots, provider webhooks, bank feed imports and database-backed concurrency/E2E coverage remain future work.
+
+## Currency precision
+
+The shared `src/lib/money.ts` helper derives minor-unit precision from ISO currency metadata rather than assuming every currency has two decimal places. Booking pricing, payment amount validation, refund arithmetic and reconciliation formatting use the helper for calculation/normalization.
+
+For compatibility, persisted Booking, Payment and Refund amount fields are still legacy major-unit numeric values. This is not yet a minor-unit database migration. Do not reinterpret existing values as minor units. A future migration must include currency-by-currency data inventory, deterministic backfill, dry-run comparison against existing ledgers, idempotent execution, rollback/recovery and production approval. Until that migration is separately designed and verified, legacy major-unit storage remains the source of truth.
