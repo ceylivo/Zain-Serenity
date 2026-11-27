@@ -25,7 +25,6 @@ function failTransaction(error: unknown): never {
 }
 const cents = (value: number) => Math.round((value + Number.EPSILON) * 100);
 const money = (value: number) => cents(value) / 100;
-const RESERVED: RefundStatus[] = ["requested", "approved", "processing", "completed"];
 
 async function refreshBookingPaymentStatus(input: {
   tenantId: mongoose.Types.ObjectId; propertyId: mongoose.Types.ObjectId;
