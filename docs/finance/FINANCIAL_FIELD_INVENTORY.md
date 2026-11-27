@@ -49,3 +49,16 @@ Non-monetary quantities such as receipt file size, inventory counters, tax perce
 - Historical as-of balances and statement exports are not implemented.
 - Reconciliation Decimal128 aggregation requires runtime testing against the actual MongoDB version and representative legacy data.
 - Replica-set integration tests for payment/refund concurrency and migration rehearsal remain outstanding.
+
+## Read-only audit command
+
+Run `npm run audit:financial` with `MONGODB_URI` pointed at a verified staging/backup database. The command uses MongoDB `find` cursors only, requests secondary-preferred reads, and never writes or migrates records.
+
+The JSON report includes:
+- document and monetary-field scan counts per collection;
+- missing currency records separately, without assuming the legacy PKR fallback;
+- invalid currency codes, malformed values, unsupported decimal precision, negative amounts, non-finite values and unsafe integer magnitudes;
+- exact integer minor-unit totals grouped by both currency and field (for example `USD -> amount`), avoiding the invalid practice of summing booking totals, tax subtotals and payment amounts into one meaningless currency total;
+- the first 100 anomaly examples plus full anomaly counts.
+
+The audit is an observational scan, not a transactionally frozen point-in-time snapshot. Run during a quiet window or against a restored backup for migration sign-off. It writes only its JSON report to stdout; it does not persist report files or modify MongoDB.
