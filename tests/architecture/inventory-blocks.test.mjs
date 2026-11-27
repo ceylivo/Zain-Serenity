@@ -68,3 +68,16 @@ test("legacy inventory reconciliation is read-only and compares tracked blocks b
   assert.doesNotMatch(route, /findOneAndUpdate|updateOne|\.save\(|\.create\(/);
   assert.match(route, /dates\.length > 31/);
 });
+
+
+test("legacy inventory audit workspace is linked and clearly read-only", async () => {
+  const page = await read("../../src/app/workspace/inventory-reconciliation/page.tsx");
+  const nav = await read("../../src/components/WorkspaceShell.tsx");
+  const packageJson = await read("../../package.json");
+  assert.match(page, /read-only audit/i);
+  assert.match(page, /No automatic migration/);
+  assert.match(page, /legacyUntrackedUnits/);
+  assert.match(page, /overtrackedUnits/);
+  assert.match(nav, /\/workspace\/inventory-reconciliation/);
+  assert.match(packageJson, /src\/app\/workspace\/inventory-reconciliation\/page\.tsx/);
+});
