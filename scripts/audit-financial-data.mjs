@@ -62,10 +62,15 @@ export async function runFinancialAudit({ uri = process.env.MONGODB_URI, output 
             report.totals.monetaryFieldsScanned += 1;
             report.totals.invalidFields += 1;
             const bucket = report.currencies.MISSING_CURRENCY ??= {
-              fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0", unsafeFieldCount:0,
+              fields:0, validFields:0, invalidFields:0, byField:{},
+            };
+            const fieldBucket = bucket.byField[entry.field] ??= {
+              fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0",
             };
             bucket.fields += 1;
             bucket.invalidFields += 1;
+            fieldBucket.fields += 1;
+            fieldBucket.invalidFields += 1;
             continue;
           }
           addMoneyObservation(report, definition.name, document, entry.field, entry.value, currency);
