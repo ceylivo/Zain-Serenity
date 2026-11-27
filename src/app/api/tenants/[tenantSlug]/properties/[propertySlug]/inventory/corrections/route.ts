@@ -77,9 +77,8 @@ export async function POST(request: Request, context: Context) {
         _id: caseId, ...scope, status: "resolved",
       }).session(sessionDb);
       if (!reviewCase) throw new Error("REVIEW_REQUIRED");
-      let originalCorrection = null;
       if (reversalOf) {
-        originalCorrection = await InventoryCorrection.findOne({
+        const originalCorrection = await InventoryCorrection.findOne({
           _id: reversalOf, ...scope, status: "applied", reconciliationCaseId: reviewCase._id,
         }).session(sessionDb);
         if (!originalCorrection || Number(delta) !== -originalCorrection.deltaBlockedRooms) {
@@ -131,6 +130,10 @@ export async function POST(request: Request, context: Context) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
       const duplicate = await InventoryCorrection.findOne({ ...scope, idempotencyKey }).lean();
       if (duplicate) return NextResponse.json({ data: { id: duplicate._id.toString(), status: duplicate.status, duplicate: true } });
+      if (reversalOf) {
+        const priorReversal = await InventoryCorrection.findOne({ ...scope, reversalOf }).lean();
+        if (priorReversal) return fail("REVERSAL_ALREADY_REQUESTED", "A reversal request already exists for this correction", 409);
+      }
     }
     if (/Transaction numbers are only allowed|replica set|mongos|does not support transactions/i.test(message)) {
       return fail("TRANSACTION_UNAVAILABLE", "Inventory correction requests require MongoDB transaction support", 503);
@@ -226,7 +229,7 @@ export async function PATCH(request: Request, context: Context) {
         resourceId: correctionId, outcome: "success",
         metadata: { deltaBlockedRooms: delta, beforeBlockedRooms: day.blockedRooms,
           afterBlockedRooms: updatedDay.blockedRooms, beforeAvailableRooms: day.availableRooms,
-          afterAvailableRooms: updatedDay.availableRooms, approvalNote },
+          afterAvailableRooms: updatedDay.availableRooms, approvalNote, reversalOf: correction.reversalOf?.toString() ?? null },
       }], { session: sessionDb });
       response = { id: correctionId, status: "applied", inventoryChanged: true,
         before: { blockedRooms: day.blockedRooms, availableRooms: day.availableRooms },
