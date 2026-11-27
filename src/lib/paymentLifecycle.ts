@@ -203,6 +203,7 @@ async function settlePayment(input: {
     return result;
   } catch (error) {
     if (error instanceof PaymentLifecycleError) throw error;
+    if (error instanceof RangeError) throw new PaymentLifecycleError("Payment amount must use the precision supported by its currency.", "PAYMENT_AMOUNT_INVALID");
     return transactionError(error);
   } finally {
     await session.endSession();
