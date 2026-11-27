@@ -9,6 +9,7 @@ import dbConnect from "@/lib/dbConnect";
 import RoomType from "@/models/RoomType";
 import RatePlan from "@/models/RatePlan";
 import AuditLog from "@/models/AuditLog";
+import { normalizeMoney } from "@/lib/money";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantSlug: string; propertySlug: string }> };
@@ -51,13 +52,16 @@ export async function POST(request: Request, context: Context) {
   const minimumNights = body.minimumNights === undefined ? 1 : readInteger(body.minimumNights, { min: 1, max: 365 });
   const maximumNights = body.maximumNights === undefined ? undefined : readInteger(body.maximumNights, { min: 1, max: 365 });
   if (!roomTypeId || !mongoose.isValidObjectId(roomTypeId) || !name || !code || !currency || !/^[A-Z]{3}$/.test(currency) || nightlyRate === null || taxRatePercent === null || minimumNights === null || (body.maximumNights !== undefined && maximumNights === null) || (typeof maximumNights === "number" && typeof minimumNights === "number" && maximumNights < minimumNights)) return fail("VALIDATION_ERROR", "Provide valid room type, name, code, currency, rate, tax and stay limits", 422);
+  let canonicalNightlyRate: number;
+  try { canonicalNightlyRate = normalizeMoney(nightlyRate, currency); }
+  catch { return fail("INVALID_CURRENCY_PRECISION", "Nightly rate must use the decimal precision supported by its currency.", 422); }
   await dbConnect();
   const roomTypeExists = await RoomType.exists({ _id: new mongoose.Types.ObjectId(roomTypeId), tenantId: access.tenantId, propertyId: access.propertyId });
   if (!roomTypeExists) return fail("ROOM_TYPE_NOT_FOUND", "Room type does not belong to this property", 404);
   try {
     const ratePlan = await RatePlan.create({
       tenantId: access.tenantId, propertyId: access.propertyId, roomTypeId: new mongoose.Types.ObjectId(roomTypeId),
-      name, code, currency, nightlyRate, taxRatePercent, minimumNights: minimumNights ?? 1, maximumNights: maximumNights ?? undefined,
+      name, code, currency, nightlyRate: canonicalNightlyRate, taxRatePercent, minimumNights: minimumNights ?? 1, maximumNights: maximumNights ?? undefined,
       description: readString(body.description, { max: 2000 }) ?? "",
       isRefundable: body.isRefundable !== false, isActive: true,
     });
