@@ -45,3 +45,12 @@ test("inventory cannot be unblocked without referencing its tracked block record
   assert.ok(!route.includes("Legacy quantity-only unblocks"));
 });
 
+
+test("inventory workspace exposes tracked releases instead of an unscoped unblock action", async () => {
+  const page = await read("../../src/app/workspace/inventory/page.tsx");
+  assert.ok(page.includes('body: JSON.stringify({ action: "block"'));
+  assert.ok(page.includes("await loadInventoryBlocks(tenantSlug, propertySlug)"));
+  assert.ok(page.includes("Release quantities later against this exact record"));
+  assert.ok(!page.includes("blockAction"));
+  assert.ok(!page.includes("Unblock rooms"));
+});
