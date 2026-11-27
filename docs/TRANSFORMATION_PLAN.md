@@ -370,3 +370,12 @@ A dedicated tenant/property-scoped refund ledger now records requested amount, p
 - It reports legacy untracked units, overtracked units and missing inventory-day records over a maximum 31-day window.
 - Added `/workspace/inventory-reconciliation` with date filters and a daily discrepancy table, linked in workspace navigation.
 - This is intentionally read-only. Legacy counters cannot reveal original actor, reason or exact date range; automatic conversion or release would fabricate history and could overbook rooms. A reviewed, explicit correction workflow remains future work.
+
+
+## Inventory discrepancy review workflow
+
+- Added immutable `InventoryReconciliationCase` snapshots scoped to tenant, property, room type and date. Snapshots capture blocked counters, tracked block totals, discrepancy quantities, a deduplication key, operator reason and creator.
+- Opening a case re-reads the current daily inventory and tracked blocks; stale discrepancies are rejected. Repeated submissions for the same snapshot reuse the unique case.
+- Added tenant/property-scoped case listing and a transactional resolve/dismiss endpoint with mandatory decision notes and audit events.
+- Workspace now lets authorized inventory managers open and review cases.
+- This workflow is intentionally administrative only: resolving/dismissing a case does not mutate room inventory. Any later correction feature must be a separate approved transaction with explicit before/after ledger records.
