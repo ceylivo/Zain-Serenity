@@ -24,7 +24,7 @@ test("audit uses exact integer minor-unit totals without floating point", () => 
   const report = createFinancialAuditReport();
   addMoneyObservation(report,"payments",{_id:"p1"},"amount","0.10","USD");
   addMoneyObservation(report,"payments",{_id:"p2"},"amount","0.20","USD");
-  assert.equal(report.currencies.USD.totalMinorUnits,"30");
+  assert.equal(report.currencies.USD.byField.amount.totalMinorUnits,"30");
   assert.equal(report.totals.validFields,2);
 });
 
