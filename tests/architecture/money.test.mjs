@@ -14,7 +14,7 @@ test("money utility derives ISO currency precision instead of assuming two decim
 
 test("money utility validates decimal precision and safe integer bounds", async () => {
   const money = await read("../../src/lib/money.ts");
-  assert.match(money, /fraction\.length > digits/);
+  assert.match(money, /significantExtraPrecision/);
   assert.match(money, /Number\.isSafeInteger/);
   assert.match(money, /plain decimal value/);
   assert.match(money, /three-letter ISO 4217 code/);
