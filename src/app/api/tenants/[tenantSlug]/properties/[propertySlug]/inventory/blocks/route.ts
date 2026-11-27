@@ -196,7 +196,6 @@ export async function POST(request: Request, context: Context) {
   let createdBlockId = "";
   try {
     await sessionDb.withTransaction(async () => {
-      if (action === "block") {
         for (const date of dates) {
           const updated = await InventoryDay.findOneAndUpdate(
             { ...scope, date, availableRooms: { $gte: Number(quantity) } },
@@ -217,7 +216,6 @@ export async function POST(request: Request, context: Context) {
           releasedQuantity: 0,
         }], { session: sessionDb });
         createdBlockId = block._id.toString();
-      }
       await AuditLog.create([{
         tenantId: access.tenantId,
         propertyId: access.propertyId,
