@@ -39,7 +39,7 @@ export default function InventoryReconciliationPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const canRead = memberships.some((item) => item.tenant.slug === tenant && ["tenant_owner", "property_manager", "inventory_manager", "analyst"].includes(item.role));
+  const canRead = memberships.some((item) => item.tenant.slug === tenant && ["tenant_owner", "property_manager", "booking_manager", "receptionist", "housekeeping"].includes(item.role));
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login?callbackUrl=/workspace/inventory-reconciliation");
