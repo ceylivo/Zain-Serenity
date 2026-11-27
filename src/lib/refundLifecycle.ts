@@ -123,7 +123,7 @@ export async function requestPaymentRefund(input: {
 
 export async function transitionPaymentRefund(input: {
   tenantId: mongoose.Types.ObjectId; propertyId: mongoose.Types.ObjectId;
-  refundId: string; actorUserId: string;
+  refundId: string; paymentId: string; actorUserId: string;
   action: "approve" | "reject" | "processing" | "complete" | "fail";
   note?: string; externalReference?: string;
 }) {
@@ -142,7 +142,7 @@ export async function transitionPaymentRefund(input: {
   try {
     await session.withTransaction(async () => {
       const refund = await Refund.findOne({
-        _id: input.refundId, tenantId: input.tenantId, propertyId: input.propertyId,
+        _id: input.refundId, paymentId: input.paymentId, tenantId: input.tenantId, propertyId: input.propertyId,
       }).session(session);
       if (!refund) throw new RefundLifecycleError("Refund was not found.", "REFUND_NOT_FOUND");
       const transitions: Record<typeof input.action, RefundStatus> = {
