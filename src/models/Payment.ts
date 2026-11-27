@@ -19,6 +19,7 @@ export interface IPayment {
   status: PaymentRecordStatus;
   isActive: boolean;
   amount: number;
+  refundReservedAmount?: number;
   currency: string;
   reference?: string;
   providerPaymentId?: string;
@@ -41,6 +42,7 @@ const PaymentSchema = new Schema<IPayment>({
   status: { type: String, enum: ["pending", "pending_verification", "succeeded", "failed", "cancelled", "refunded"], required: true, default: "pending", index: true },
   isActive: { type: Boolean, required: true, default: true },
   amount: { type: Number, required: true, min: 1 },
+  refundReservedAmount: { type: Number, required: true, min: 0, default: 0 },
   currency: { type: String, required: true, uppercase: true, minlength: 3, maxlength: 3 },
   reference: { type: String, trim: true, maxlength: 120 },
   providerPaymentId: { type: String, trim: true, maxlength: 160 },
