@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   inspectMoneyValue,
   createFinancialAuditReport,
-  addMoneyObservation,\n  addMissingMoneyObservation,
+  addMoneyObservation,
+  addMissingMoneyObservation,
 } from "../scripts/lib/financial-audit.mjs";
 
 test("audit recognizes supported currency exponents", () => {
