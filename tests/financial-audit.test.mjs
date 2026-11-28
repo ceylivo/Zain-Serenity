@@ -66,3 +66,10 @@ test("audit parses scientific notation from BSON/JavaScript numeric values exact
   assert.equal(inspectMoneyValue(1e21,"JPY").status,"unsafe_integer");
   assert.equal(inspectMoneyValue(1.25e2,"USD").minorUnits,"12500");
 });
+
+test("audit derives currency precision from the runtime ISO currency metadata", () => {
+  assert.equal(inspectMoneyValue("100","JPY").status,"valid");
+  assert.equal(inspectMoneyValue("1.234","KWD").status,"valid");
+  assert.equal(inspectMoneyValue("1.2345","CLF").status,"valid");
+  assert.equal(inspectMoneyValue("1.001","USD").status,"excess_precision");
+});
