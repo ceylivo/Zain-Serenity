@@ -9,11 +9,11 @@ export function getCurrencyDigits(currency) {
     return { valid:false, digits:null };
   }
   try {
-    new Intl.NumberFormat("en", { style:"currency", currency });
+    const formatter = new Intl.NumberFormat("en", { style:"currency", currency });
+    return { valid:true, digits:formatter.resolvedOptions().maximumFractionDigits };
   } catch {
     return { valid:false, digits:null };
   }
-  return { valid:true, digits:MINOR_UNIT_OVERRIDES[currency] ?? 2 };
 }
 
 function decimalParts(value) {
