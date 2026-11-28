@@ -3,14 +3,14 @@ import mongoose from "mongoose";
 import { pathToFileURL } from "node:url";
 import {
   createFinancialAuditReport,
-  addMoneyObservation,
+  addMoneyObservation,\n  addMissingMoneyObservation,
 } from "./lib/financial-audit.mjs";
 
 const COLLECTIONS = [
-  { name:"bookings", fields:["totalPrice","pricing.subtotal","pricing.taxes","pricing.discount","pricing.total"] },
-  { name:"rateplans", fields:["nightlyRate"] },
-  { name:"payments", fields:["amount","refundReservedAmount"] },
-  { name:"refunds", fields:["amount"] },
+  { name:"bookings", fields:["totalPrice","pricing.subtotal","pricing.taxes","pricing.discount","pricing.total"], requiredFields:["totalPrice"] },
+  { name:"rateplans", fields:["nightlyRate"], requiredFields:["nightlyRate"] },
+  { name:"payments", fields:["amount","refundReservedAmount"], requiredFields:["amount","refundReservedAmount"] },
+  { name:"refunds", fields:["amount"], requiredFields:["amount"] },
 ];
 
 function getPath(object, path) {
@@ -40,6 +40,12 @@ export async function runFinancialAudit({ uri = process.env.MONGODB_URI, output 
         stats.documentsScanned += 1;
         report.totals.documentsScanned += 1;
         const currency = typeof document.currency === "string" ? document.currency.trim().toUpperCase() : "";
+        for (const field of definition.requiredFields) {
+          if (!hasMoneyValue(getPath(document, field))) {
+            addMissingMoneyObservation(report, definition.name, document, field);
+            stats.monetaryFieldsScanned += 1;
+          }
+        }
         const values = definition.fields
           .map((field) => ({ field, value:getPath(document, field) }))
           .filter((entry) => hasMoneyValue(entry.value));
@@ -84,7 +90,7 @@ export async function runFinancialAudit({ uri = process.env.MONGODB_URI, output 
       notes:[
         "Read-only scan: this tool issues find operations only and does not insert, update, replace, or delete records.",
         "Totals are represented as integer minor-unit strings, grouped by the record's own currency.",
-        "Missing currency is reported separately; no legacy PKR default is inferred.",
+        "Missing currency is reported separately; no legacy PKR default is inferred.",\n        "Required monetary fields that are absent or null are reported as missing_money_field.",
         "Anomalies contains at most the first 100 records; anomalyCounts contains full counts.",
         "Run against a verified backup/staging database first. Large collections may take time to scan.",
       ],
