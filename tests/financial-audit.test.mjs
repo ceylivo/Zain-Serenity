@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   inspectMoneyValue,
   createFinancialAuditReport,
-  addMoneyObservation,
+  addMoneyObservation,\n  addMissingMoneyObservation,
 } from "../scripts/lib/financial-audit.mjs";
 
 test("audit recognizes supported currency exponents", () => {
@@ -43,4 +43,19 @@ test("audit script is read-only and prefers secondary reads", async () => {
   assert.match(script, /readPreference:\s*"secondaryPreferred"/);
   assert.match(script, /collection\.find\(/);
   assert.doesNotMatch(script, /\.insertOne\(|\.updateOne\(|\.replaceOne\(|\.deleteOne\(|\.bulkWrite\(/);
+});
+
+test("audit reports absent required monetary fields", () => {
+  const report = createFinancialAuditReport();
+  addMissingMoneyObservation(report,"payments",{_id:"p-missing",currency:"PKR"},"amount");
+  assert.equal(report.totals.monetaryFieldsScanned,1);
+  assert.equal(report.totals.invalidFields,1);
+  assert.equal(report.anomalyCounts.missing_money_field,1);
+  assert.equal(report.currencies.PKR.byField["payments.amount"].invalidFields,1);
+});
+
+test("audit command declares required money fields and read-only role requirement", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const script = await readFile(new URL("../scripts/audit-financial-data.mjs", import.meta.url), "utf8");
+  assert.match(script, /requiredFields:\["amount","refundReservedAmount"\]/);
 });
