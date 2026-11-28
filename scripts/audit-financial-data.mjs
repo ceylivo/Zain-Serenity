@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 import { pathToFileURL } from "node:url";
 import {
   createFinancialAuditReport,
-  addMoneyObservation,\n  addMissingMoneyObservation,
+  addMoneyObservation,
+  addMissingMoneyObservation,
 } from "./lib/financial-audit.mjs";
 
 const COLLECTIONS = [
@@ -90,7 +91,8 @@ export async function runFinancialAudit({ uri = process.env.MONGODB_URI, output 
       notes:[
         "Read-only scan: this tool issues find operations only and does not insert, update, replace, or delete records.",
         "Totals are represented as integer minor-unit strings, grouped by the record's own currency.",
-        "Missing currency is reported separately; no legacy PKR default is inferred.",\n        "Required monetary fields that are absent or null are reported as missing_money_field.",
+        "Missing currency is reported separately; no legacy PKR default is inferred.",
+        "Required monetary fields that are absent or null are reported as missing_money_field.",
         "Anomalies contains at most the first 100 records; anomalyCounts contains full counts.",
         "Run against a verified backup/staging database first. Large collections may take time to scan.",
       ],
