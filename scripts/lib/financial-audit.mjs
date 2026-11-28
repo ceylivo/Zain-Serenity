@@ -112,3 +112,32 @@ export function addMoneyObservation(report, collectionName, document, field, val
   }
   return result;
 }
+
+export function addMissingMoneyObservation(report, collectionName, document, field) {
+  report.totals.monetaryFieldsScanned += 1;
+  report.totals.invalidFields += 1;
+  const currency = typeof document.currency === "string" ? document.currency.trim().toUpperCase() : "";
+  const bucketKey = currency || "MISSING_CURRENCY";
+  const currencyBucket = report.currencies[bucketKey] ??= {
+    fields:0, validFields:0, invalidFields:0, byField:{},
+  };
+  const fieldKey = `${collectionName}.${field}`;
+  const fieldBucket = currencyBucket.byField[fieldKey] ??= {
+    fields:0, validFields:0, invalidFields:0, totalMinorUnits:"0",
+  };
+  currencyBucket.fields += 1;
+  currencyBucket.invalidFields += 1;
+  fieldBucket.fields += 1;
+  fieldBucket.invalidFields += 1;
+  report.anomalyCounts.missing_money_field = (report.anomalyCounts.missing_money_field ?? 0) + 1;
+  if (report.anomalies.length < 100) {
+    report.anomalies.push({
+      collection:collectionName,
+      documentId:String(document._id),
+      field,
+      currency:currency || null,
+      status:"missing_money_field",
+      value:null,
+    });
+  }
+}
