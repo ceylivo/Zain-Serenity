@@ -25,9 +25,20 @@ function decimalParts(value) {
     return { valid:false, reason:"unsupported_type" };
   }
   const raw = String(value).trim();
-  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
+  const match = /^(-?)(\\d+)(?:\\.(\\d+))?(?:[eE]([+-]?\\d+))?$/.exec(raw);
   if (!match) return { valid:false, reason:"malformed_decimal" };
-  return { valid:true, negative:match[1] === "-", whole:match[2], fraction:match[3] ?? "", raw };
+  const exponent = Number(match[4] ?? 0);
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 1000) {
+    return { valid:false, reason:"invalid_exponent" };
+  }
+  const digits = match[2] + (match[3] ?? "");
+  const decimalPosition = match[2].length + exponent;
+  const whole = decimalPosition <= 0 ? "0" :
+    decimalPosition >= digits.length ? digits + "0".repeat(decimalPosition - digits.length) :
+    digits.slice(0, decimalPosition);
+  const fraction = decimalPosition <= 0 ? "0".repeat(-decimalPosition) + digits :
+    decimalPosition >= digits.length ? "" : digits.slice(decimalPosition);
+  return { valid:true, negative:match[1] === "-", whole:whole || "0", fraction, raw };
 }
 
 export function inspectMoneyValue(value, currency) {
