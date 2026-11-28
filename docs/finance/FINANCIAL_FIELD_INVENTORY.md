@@ -62,3 +62,9 @@ The JSON report includes:
 - the first 100 anomaly examples plus full anomaly counts.
 
 The audit is an observational scan, not a transactionally frozen point-in-time snapshot. Run during a quiet window or against a restored backup for migration sign-off. It writes only its JSON report to stdout; it does not persist report files or modify MongoDB.
+
+### Audit safety requirements
+
+Use a MongoDB account with read-only privileges (for example, the built-in `read` role scoped to the target database). The script itself issues only collection `find` operations; `secondaryPreferred` is a read preference, not an authorization boundary and does not replace a read-only database role.
+
+The audit reports absent/null required monetary values for Booking.totalPrice, RatePlan.nightlyRate, Payment.amount, Payment.refundReservedAmount and Refund.amount. Optional legacy Booking.pricing subfields are only audited when present; their absence is not automatically treated as corruption.
