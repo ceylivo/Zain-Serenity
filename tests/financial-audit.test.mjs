@@ -60,3 +60,9 @@ test("audit command declares required money fields and read-only role requiremen
   const script = await readFile(new URL("../scripts/audit-financial-data.mjs", import.meta.url), "utf8");
   assert.match(script, /requiredFields:\["amount","refundReservedAmount"\]/);
 });
+
+test("audit parses scientific notation from BSON/JavaScript numeric values exactly", () => {
+  assert.equal(inspectMoneyValue(1e-7,"USD").status,"excess_precision");
+  assert.equal(inspectMoneyValue(1e21,"JPY").status,"unsafe_integer");
+  assert.equal(inspectMoneyValue(1.25e2,"USD").minorUnits,"12500");
+});
